@@ -68,4 +68,12 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url))
     },
   },
+  server: {
+    host: true,
+    allowedHosts: [
+      '.trifle.zone',
+      'b-5173.trifle.zone',
+      'localhost'
+    ]
+  }
 })

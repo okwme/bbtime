@@ -1,12 +1,12 @@
 <template>
-  <div class="min-h-screen bg-gray-50">
+  <div class="h-full bg-gray-50 flex flex-col">
     <!-- Header -->
-    <div class="bg-white shadow-sm border-b border-gray-200 px-4 py-4 sticky top-0 z-10">
+    <div class="bg-white shadow-sm border-b border-gray-200 px-4 py-4 flex-shrink-0">
       <h1 class="text-2xl font-bold text-gray-800 text-center">Timeline</h1>
     </div>
 
     <!-- Timeline Content -->
-    <div class="px-4 py-6 space-y-6">
+    <div class="flex-1 overflow-y-auto px-4 py-6 space-y-6">
       <div v-if="store.groupedByDay.length === 0" class="text-center py-12">
         <p class="text-gray-500 text-lg">No activity recorded yet</p>
       </div>

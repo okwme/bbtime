@@ -1,12 +1,12 @@
 <template>
-  <div class="min-h-screen bg-gray-50 flex flex-col">
+  <div class="h-full bg-gray-50 flex flex-col">
     <!-- Header -->
-    <div class="bg-white shadow-sm border-b border-gray-200 px-4 py-4">
+    <div class="bg-white shadow-sm border-b border-gray-200 px-4 py-4 flex-shrink-0">
       <h1 class="text-2xl font-bold text-gray-800 text-center">Baby Time Tracker</h1>
     </div>
 
     <!-- Current Status Display -->
-    <div class="flex-1 flex flex-col justify-center items-center px-4 py-8">
+    <div class="flex-1 flex flex-col justify-center items-center px-4 py-8 overflow-y-auto">
       <!-- Status Circle -->
       <div class="relative mb-8">
         <div

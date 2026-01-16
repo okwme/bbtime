@@ -36,17 +36,25 @@ const route = useRoute()
 
 <style scoped>
 .app-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100vh;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
-  max-height: 100vh;
   overflow: hidden;
 }
 
 .main-content {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
+  padding-bottom: 4rem;
 }
 
 .bottom-nav {
@@ -54,10 +62,12 @@ const route = useRoute()
   background: white;
   border-top: 1px solid #e5e7eb;
   box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.05);
-  position: sticky;
+  position: fixed;
   bottom: 0;
+  left: 0;
+  right: 0;
   z-index: 50;
-  padding-bottom: env(safe-area-inset-bottom);
+  flex-shrink: 0;
 }
 
 .nav-item {
@@ -67,10 +77,12 @@ const route = useRoute()
   align-items: center;
   justify-content: center;
   padding: 0.75rem 0;
+  padding-bottom: calc(0.75rem + env(safe-area-inset-bottom));
   color: #6b7280;
   text-decoration: none;
-  transition: all 0.2s;
+  transition: color 0.2s;
   -webkit-tap-highlight-color: transparent;
+  user-select: none;
 }
 
 .nav-item:active {
@@ -84,17 +96,12 @@ const route = useRoute()
 .nav-icon {
   font-size: 1.5rem;
   margin-bottom: 0.25rem;
+  line-height: 1;
 }
 
 .nav-label {
   font-size: 0.75rem;
   font-weight: 500;
-}
-
-/* iOS safe area support */
-@supports (padding: max(0px)) {
-  .bottom-nav {
-    padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
-  }
+  line-height: 1;
 }
 </style>
