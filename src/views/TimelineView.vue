@@ -98,8 +98,7 @@
 
           <!-- 24-Hour Column -->
           <div
-            class="flex-1 relative bg-white rounded-lg border-2 border-gray-200 overflow-hidden cursor-crosshair"
-            @mousedown="(e) => handleColumnMouseDown(e, day.date)"
+            class="flex-1 relative bg-white rounded-lg border-2 border-gray-200 overflow-hidden"
           >
             <!-- Hour grid lines (faint) - matches time markers -->
             <div class="absolute inset-0 flex flex-col pointer-events-none">
@@ -118,7 +117,7 @@
               class="absolute transition-opacity hover:opacity-90 flex flex-col items-center justify-center border-l-4 overflow-hidden select-none"
               :class="[
                 getActivityColorClass(entry.type),
-                entry.id === 'current-activity' ? 'cursor-pointer' : 'cursor-move hover:ring-2 hover:ring-blue-400'
+                'cursor-pointer hover:ring-2 hover:ring-blue-400'
               ]"
               :style="getColumnStyle(entry)"
               @mousedown="entry.id === 'current-activity' ? handleEditEntry(entry) : (e: MouseEvent) => handleBlockMouseDown(e, entry, day.date)"
@@ -164,6 +163,15 @@
         </div>
       </div>
     </div>
+
+    <!-- Floating + Button -->
+    <button
+      @click="showCreateModal = true"
+      class="fixed bottom-20 right-6 w-14 h-14 bg-blue-500 hover:bg-blue-600 text-white rounded-full shadow-lg flex items-center justify-center text-3xl font-light z-40 transition-transform hover:scale-110"
+      title="Add new activity"
+    >
+      +
+    </button>
 
     <!-- Legend -->
     <div class="flex-shrink-0 bg-white border-t border-gray-200 px-4 py-2">
@@ -269,6 +277,69 @@
         </div>
       </div>
     </div>
+
+    <!-- Create Modal -->
+    <div
+      v-if="showCreateModal"
+      class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+      @click.self="closeCreateModal"
+    >
+      <div class="bg-white rounded-2xl p-6 w-full max-w-md">
+        <h3 class="text-xl font-bold mb-4 text-gray-800">Add New Activity</h3>
+
+        <div class="space-y-4">
+          <!-- Activity Type -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Activity</label>
+            <select
+              v-model="createActivityType"
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg"
+            >
+              <option value="sleeping">😴 Sleeping</option>
+              <option value="eating">🍼 Eating</option>
+              <option value="awake">👶 Awake</option>
+            </select>
+          </div>
+
+          <!-- Start Time -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Start Time</label>
+            <input
+              v-model="createStartTime"
+              type="datetime-local"
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+
+          <!-- End Time -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">End Time</label>
+            <input
+              v-model="createEndTime"
+              type="datetime-local"
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+
+          <!-- Buttons -->
+          <div class="flex gap-2 mt-6">
+            <button
+              @click="handleCreateEntry"
+              :disabled="!createStartTime || !createEndTime"
+              class="flex-1 bg-blue-500 text-white font-bold py-3 px-4 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Create
+            </button>
+          </div>
+          <button
+            @click="closeCreateModal"
+            class="w-full bg-gray-300 text-gray-800 font-bold py-3 px-4 rounded-xl"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -297,13 +368,14 @@ let isPinching = false
 // Drag editing state
 interface DragState {
   isDragging: boolean
-  mode: 'move' | 'resize-start' | 'resize-end' | 'create' | null
+  mode: 'move' | 'resize-start' | 'resize-end' | null
   entry: ActivityEntry | null
   originalStartTime: Date | null
   originalEndTime: Date | null
   dateKey: string | null
   startY: number
   currentY: number
+  holdTimer: number | null
 }
 
 const dragState = ref<DragState>({
@@ -314,8 +386,14 @@ const dragState = ref<DragState>({
   originalEndTime: null,
   dateKey: null,
   startY: 0,
-  currentY: 0
+  currentY: 0,
+  holdTimer: null
 })
+
+const showCreateModal = ref(false)
+const createActivityType = ref<ActivityType>('eating')
+const createStartTime = ref('')
+const createEndTime = ref('')
 
 // Zoom configuration
 const zoomConfig = [
@@ -508,9 +586,31 @@ const hasOverlap = (entries: ActivityEntry[], excludeId?: string): boolean => {
   return false
 }
 
+const checkForOverlap = (entries: ActivityEntry[], testEntry: ActivityEntry): boolean => {
+  // Check if testEntry would overlap with any existing entries (excluding itself and current-activity)
+  return entries.some(entry => {
+    if (entry.id === testEntry.id || entry.id === 'current-activity' || !entry.endTime || !testEntry.endTime) {
+      return false
+    }
+
+    // Check if ranges overlap
+    const testStart = testEntry.startTime.getTime()
+    const testEnd = testEntry.endTime.getTime()
+    const entryStart = entry.startTime.getTime()
+    const entryEnd = entry.endTime.getTime()
+
+    // Overlap if: testStart < entryEnd AND testEnd > entryStart
+    return testStart < entryEnd && testEnd > entryStart
+  })
+}
+
 // Drag editing event handlers
 const handleBlockMouseDown = (e: MouseEvent, entry: ActivityEntry, dateKey: string) => {
-  if (entry.id === 'current-activity') return // Don't drag current activity
+  if (entry.id === 'current-activity') {
+    // Current activity opens edit modal immediately
+    handleEditEntry(entry)
+    return
+  }
 
   e.stopPropagation()
   const target = e.currentTarget as HTMLElement
@@ -519,49 +619,39 @@ const handleBlockMouseDown = (e: MouseEvent, entry: ActivityEntry, dateKey: stri
 
   const edge = isNearEdge(relativeY, 0, rect.height)
 
-  dragState.value = {
-    isDragging: true,
-    mode: edge === 'top' ? 'resize-start' : edge === 'bottom' ? 'resize-end' : 'move',
-    entry: { ...entry },
-    originalStartTime: new Date(entry.startTime),
-    originalEndTime: entry.endTime ? new Date(entry.endTime) : null,
-    dateKey,
-    startY: e.clientY,
-    currentY: e.clientY
+  // Start a timer to detect hold (200ms)
+  const holdTimer = window.setTimeout(() => {
+    // Hold detected - start drag
+    dragState.value = {
+      isDragging: true,
+      mode: edge === 'top' ? 'resize-start' : edge === 'bottom' ? 'resize-end' : 'move',
+      entry: { ...entry },
+      originalStartTime: new Date(entry.startTime),
+      originalEndTime: entry.endTime ? new Date(entry.endTime) : null,
+      dateKey,
+      startY: e.clientY,
+      currentY: e.clientY,
+      holdTimer: null
+    }
+
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', handleMouseUp)
+  }, 200)
+
+  dragState.value.holdTimer = holdTimer
+
+  // Add temporary mouseup to cancel if released quickly (click)
+  const handleQuickRelease = () => {
+    if (dragState.value.holdTimer) {
+      clearTimeout(dragState.value.holdTimer)
+      dragState.value.holdTimer = null
+      // Quick release = click = open edit modal
+      handleEditEntry(entry)
+    }
+    document.removeEventListener('mouseup', handleQuickRelease)
   }
 
-  document.addEventListener('mousemove', handleMouseMove)
-  document.addEventListener('mouseup', handleMouseUp)
-}
-
-const handleColumnMouseDown = (e: MouseEvent, dateKey: string) => {
-  if (dragState.value.isDragging) return
-
-  const target = e.currentTarget as HTMLElement
-  const rect = target.getBoundingClientRect()
-  const relativeY = e.clientY - rect.top
-
-  const startTime = yPositionToTime(relativeY, rect.height, dateKey)
-
-  // Create a new entry starting at clicked time
-  dragState.value = {
-    isDragging: true,
-    mode: 'create',
-    entry: {
-      id: crypto.randomUUID(),
-      type: 'awake',
-      startTime,
-      endTime: new Date(startTime.getTime() + 30 * 60000) // Default 30 min
-    },
-    originalStartTime: startTime,
-    originalEndTime: new Date(startTime.getTime() + 30 * 60000),
-    dateKey,
-    startY: e.clientY,
-    currentY: e.clientY
-  }
-
-  document.addEventListener('mousemove', handleMouseMove)
-  document.addEventListener('mouseup', handleMouseUp)
+  document.addEventListener('mouseup', handleQuickRelease)
 }
 
 const handleMouseMove = (e: MouseEvent) => {
@@ -615,16 +705,39 @@ const handleMouseUp = () => {
   }
 
   const entry = dragState.value.entry
+  const dateKey = dragState.value.dateKey
 
   if (dragState.value.mode === 'create') {
     // Create new entry
     if (entry.endTime) {
       store.createEntry(entry.type, entry.startTime, entry.endTime)
+
+      // Auto-merge after creation
+      if (dateKey) {
+        mergeAdjacentSameType(dateKey)
+      }
     }
   } else {
-    // Update existing entry
-    if (entry.endTime) {
+    // Check for overlaps before updating
+    if (entry.endTime && dateKey) {
+      const day = store.getGroupedDays(dayViewCount.value, dayOffset.value).find(d => d.date === dateKey)
+      if (day) {
+        const wouldOverlap = checkForOverlap(day.entries, entry)
+
+        if (wouldOverlap) {
+          alert('Cannot move activity - it would overlap with another activity. Please resolve the conflict first.')
+          dragState.value.isDragging = false
+          document.removeEventListener('mousemove', handleMouseMove)
+          document.removeEventListener('mouseup', handleMouseUp)
+          return
+        }
+      }
+
+      // Update existing entry
       store.updateEntry(entry.id, entry.startTime, entry.endTime, entry.type)
+
+      // Auto-merge after update
+      mergeAdjacentSameType(dateKey)
     }
   }
 
@@ -879,6 +992,88 @@ const handleDeleteEntry = () => {
   if (confirm('Are you sure you want to delete this activity?')) {
     store.deleteEntry(entry.id)
     closeEditModal()
+  }
+}
+
+const closeCreateModal = () => {
+  showCreateModal.value = false
+  createActivityType.value = 'eating'
+  createStartTime.value = ''
+  createEndTime.value = ''
+}
+
+const handleCreateEntry = () => {
+  if (!createStartTime.value || !createEndTime.value) return
+
+  const startTime = snapToFiveMinutes(new Date(createStartTime.value))
+  const endTime = snapToFiveMinutes(new Date(createEndTime.value))
+
+  if (endTime.getTime() <= startTime.getTime()) {
+    alert('End time must be after start time')
+    return
+  }
+
+  // Check for overlaps before creating
+  const dateKey = startTime.toISOString().split('T')[0] as string
+  const day = store.getGroupedDays(dayViewCount.value, dayOffset.value).find(d => d.date === dateKey)
+
+  if (day) {
+    const testEntry: ActivityEntry = {
+      id: 'temp',
+      type: createActivityType.value,
+      startTime,
+      endTime
+    }
+
+    const wouldOverlap = checkForOverlap(day.entries, testEntry)
+
+    if (wouldOverlap) {
+      alert('Cannot create activity - it would overlap with an existing activity. Please choose a different time.')
+      return
+    }
+  }
+
+  // Create the entry
+  store.createEntry(createActivityType.value, startTime, endTime)
+
+  // Auto-merge adjacent same-type events
+  mergeAdjacentSameType(dateKey)
+
+  closeCreateModal()
+}
+
+const mergeAdjacentSameType = (dateKey: string) => {
+  const day = store.getGroupedDays(dayViewCount.value, dayOffset.value).find(d => d.date === dateKey)
+  if (!day) return
+
+  // Sort entries by start time
+  const sortedEntries = [...day.entries]
+    .filter(e => e.id !== 'current-activity' && e.endTime !== null)
+    .sort((a, b) => a.startTime.getTime() - b.startTime.getTime())
+
+  // Find adjacent entries of same type that touch or overlap
+  for (let i = 0; i < sortedEntries.length - 1; i++) {
+    const current = sortedEntries[i]
+    const next = sortedEntries[i + 1]
+
+    if (!current || !next || !current.endTime) continue
+
+    // Check if same type and adjacent/overlapping (within 5 minutes tolerance)
+    if (current.type === next.type) {
+      const gap = next.startTime.getTime() - current.endTime.getTime()
+      const fiveMinutes = 5 * 60 * 1000
+
+      if (gap <= fiveMinutes) {
+        // Merge: extend current to next's end time, delete next
+        const mergedEndTime = next.endTime || new Date()
+        store.updateEntry(current.id, current.startTime, mergedEndTime, current.type)
+        store.deleteEntry(next.id)
+
+        // Recursively check for more merges
+        mergeAdjacentSameType(dateKey)
+        return
+      }
+    }
   }
 }
 </script>
