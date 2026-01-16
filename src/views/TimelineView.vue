@@ -75,6 +75,7 @@
 
     <div
       v-else
+      ref="calendarScrollContainer"
       class="flex-1 overflow-x-hidden overflow-y-auto touch-pan-y"
       style="touch-action: pan-y;"
       @touchstart="handleTouchStart"
@@ -120,8 +121,7 @@
                 'cursor-pointer hover:ring-2 hover:ring-blue-400'
               ]"
               :style="getColumnStyle(entry)"
-              @mousedown="entry.id === 'current-activity' ? handleEditEntry(entry) : (e: MouseEvent) => handleBlockMouseDown(e, entry, day.date)"
-              @click.stop="entry.id === 'current-activity' ? handleEditEntry(entry) : null"
+              @mousedown="(e: MouseEvent) => handleBlockMouseDown(e, entry, day.date)"
             >
               <span class="text-xs font-bold" :class="getTextColorClass(entry.type)">
                 {{ getActivityEmoji(entry.type) }}
@@ -355,14 +355,14 @@ const editEndTime = ref('')
 const editActivityType = ref<ActivityType>('awake')
 const isOngoing = ref(false)
 const currentTime = ref(new Date())
-const zoomLevel = ref(2) // 0 (most out) to 5 (most in)
+const zoomLevel = ref(4) // 0 (most out) to 5 (most in) - default to 15min
 const dayViewCount = ref(3) // 1, 3, or 5 days
 const dayOffset = ref(0) // Offset from today
 let intervalId: number | null = null
 
 // Touch/pinch zoom state
 let initialPinchDistance = 0
-let initialZoomLevel = 2
+let initialZoomLevel = 4
 let isPinching = false
 
 // Drag editing state
@@ -394,6 +394,7 @@ const showCreateModal = ref(false)
 const createActivityType = ref<ActivityType>('eating')
 const createStartTime = ref('')
 const createEndTime = ref('')
+const calendarScrollContainer = ref<HTMLElement | null>(null)
 
 // Zoom configuration
 const zoomConfig = [
@@ -622,6 +623,11 @@ const handleBlockMouseDown = (e: MouseEvent, entry: ActivityEntry, dateKey: stri
   // Start a timer to detect hold (200ms)
   const holdTimer = window.setTimeout(() => {
     // Hold detected - start drag
+    // Trigger haptic feedback
+    if ('vibrate' in navigator) {
+      navigator.vibrate(10) // 10ms click vibration
+    }
+
     dragState.value = {
       isDragging: true,
       mode: edge === 'top' ? 'resize-start' : edge === 'bottom' ? 'resize-end' : 'move',
@@ -749,6 +755,22 @@ const handleMouseUp = () => {
 // Update current time every second to trigger reactivity for ongoing activities
 onMounted(async () => {
   await store.initialize()
+
+  // Scroll to current time
+  if (calendarScrollContainer.value) {
+    const now = new Date()
+    const hours = now.getHours()
+    const minutes = now.getMinutes()
+    const minutesIntoDay = hours * 60 + minutes
+    const percentage = minutesIntoDay / 1440 // 1440 minutes in a day
+
+    const config = zoomConfig[zoomLevel.value]
+    if (config) {
+      const scrollPosition = (percentage * config.height) - (calendarScrollContainer.value.clientHeight / 3)
+      calendarScrollContainer.value.scrollTop = Math.max(0, scrollPosition)
+    }
+  }
+
   intervalId = window.setInterval(() => {
     currentTime.value = new Date()
   }, 1000)

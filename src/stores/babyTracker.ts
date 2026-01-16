@@ -272,8 +272,9 @@ export const useBabyTrackerStore = defineStore('babyTracker', () => {
     today.setHours(0, 0, 0, 0)
 
     // Calculate start and end based on day count
-    const startOffset = offset - Math.floor((dayCount - 1) / 2)
-    const endOffset = startOffset + dayCount - 1
+    // When offset=0, today is the leftmost column
+    const startOffset = offset
+    const endOffset = offset + dayCount - 1
 
     for (let i = startOffset; i <= endOffset; i++) {
       const date = new Date(today)
