@@ -60,11 +60,14 @@ export const useBabyTrackerStore = defineStore('babyTracker', () => {
     const groups = new Map<string, ActivityEntry[]>()
 
     entries.value.forEach(entry => {
-      const dateKey = entry.startTime.toISOString().split('T')[0]
+      const dateKey = entry.startTime.toISOString().split('T')[0] as string
       if (!groups.has(dateKey)) {
         groups.set(dateKey, [])
       }
-      groups.get(dateKey)!.push(entry)
+      const group = groups.get(dateKey)
+      if (group) {
+        group.push(entry)
+      }
     })
 
     return Array.from(groups.entries())
