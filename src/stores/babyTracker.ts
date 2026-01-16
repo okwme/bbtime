@@ -425,12 +425,7 @@ export const useBabyTrackerStore = defineStore('babyTracker', () => {
   }
 
   const toggleEating = () => {
-    if (currentActivity.value === 'sleeping') {
-      // Can't eat while sleeping, switch to awake first
-      toggleSleepAwake()
-    }
-
-    // If currently eating, end eating period
+    // If currently eating, end eating period and return to awake
     if (isEating.value) {
       const newEntry: ActivityEntry = {
         id: crypto.randomUUID(),
@@ -441,24 +436,24 @@ export const useBabyTrackerStore = defineStore('babyTracker', () => {
       entries.value.push(newEntry)
 
       isEating.value = false
+      currentActivity.value = 'awake'
       currentEntryStartTime.value = new Date()
 
       // Reset alert trackers
       lastAwakeAlert.value = null
       lastSleepAlert.value = null
     } else {
-      // If currently awake (not eating), end awake and start eating
-      if (currentActivity.value === 'awake') {
-        const newEntry: ActivityEntry = {
-          id: crypto.randomUUID(),
-          type: 'awake',
-          startTime: currentEntryStartTime.value,
-          endTime: new Date()
-        }
-        entries.value.push(newEntry)
+      // End current activity (sleeping or awake) and start eating
+      const newEntry: ActivityEntry = {
+        id: crypto.randomUUID(),
+        type: currentActivity.value,
+        startTime: currentEntryStartTime.value,
+        endTime: new Date()
       }
+      entries.value.push(newEntry)
 
       isEating.value = true
+      currentActivity.value = 'awake' // Eating is a type of awake state
       currentEntryStartTime.value = new Date()
 
       // Reset alert trackers
@@ -544,7 +539,7 @@ export const useBabyTrackerStore = defineStore('babyTracker', () => {
 
     // Auto-join default room if not already connected
     // Set this to your JSONBin bin ID to auto-connect on load
-    const DEFAULT_BIN_ID = '' // Leave empty to disable auto-join
+    const DEFAULT_BIN_ID = '6969d1f2d0ea881f406f476b'
     if (!roomInfo.value && DEFAULT_BIN_ID) {
       try {
         await joinRoom(DEFAULT_BIN_ID)
