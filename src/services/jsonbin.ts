@@ -20,7 +20,9 @@ function getHeaders(): HeadersInit {
 
   const apiKey = getApiKey()
   if (apiKey) {
-    headers['X-Master-Key'] = apiKey
+    // JSONBin supports both X-Master-Key and X-Access-Key
+    // Use X-Access-Key for access keys (bcrypt format)
+    headers['X-Access-Key'] = apiKey
   }
 
   return headers

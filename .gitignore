@@ -14,6 +14,10 @@ dist-ssr
 coverage
 *.local
 
+# Environment variables
+.env
+.env.local
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
@@ -36,3 +40,6 @@ coverage
 __screenshots__/
 screenshot*.png
 screenshot.js
+
+# Test files with sensitive data
+test-jsonbin.js
