@@ -264,14 +264,18 @@ export const useBabyTrackerStore = defineStore('babyTracker', () => {
     return currentActivity.value
   })
 
-  const groupedByDay = computed<DayData[]>(() => {
+  const getGroupedDays = (dayCount: number, offset: number): DayData[] => {
     const groups = new Map<string, ActivityEntry[]>()
 
-    // Generate date range: 3 days before to 3 days after today (7 total days to fit ~3 on screen)
+    // Generate date range based on requested day count and offset
     const today = new Date()
     today.setHours(0, 0, 0, 0)
 
-    for (let i = -3; i <= 3; i++) {
+    // Calculate start and end based on day count
+    const startOffset = offset - Math.floor((dayCount - 1) / 2)
+    const endOffset = startOffset + dayCount - 1
+
+    for (let i = startOffset; i <= endOffset; i++) {
       const date = new Date(today)
       date.setDate(today.getDate() + i)
       const dateKey = date.toISOString().split('T')[0] as string
@@ -311,8 +315,11 @@ export const useBabyTrackerStore = defineStore('babyTracker', () => {
         date,
         entries: entries.sort((a, b) => a.startTime.getTime() - b.startTime.getTime())
       }))
-      .sort((a, b) => a.date.localeCompare(b.date)) // Changed to ascending order (old to new, left to right)
-  })
+      .sort((a, b) => a.date.localeCompare(b.date)) // Ascending order (old to new, left to right)
+  }
+
+  // Default computed version for backward compatibility
+  const groupedByDay = computed<DayData[]>(() => getGroupedDays(3, 0))
 
   const elapsedTime = computed(() => {
     const now = new Date()
@@ -557,6 +564,7 @@ export const useBabyTrackerStore = defineStore('babyTracker', () => {
     // Computed
     currentActivityType,
     groupedByDay,
+    getGroupedDays,
     elapsedTime,
     isConnectedToRoom,
 

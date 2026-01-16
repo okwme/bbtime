@@ -1,49 +1,93 @@
 <template>
   <div class="h-full bg-gray-50 flex flex-col">
     <!-- Header -->
-    <div class="bg-white shadow-sm border-b border-gray-200 px-4 py-3 flex-shrink-0 flex items-center justify-between">
-      <h1 class="text-xl font-bold text-gray-800">Activity Calendar</h1>
-      <div class="flex items-center gap-2">
-        <button
-          @click="zoomOut"
-          :disabled="zoomLevel === 0"
-          class="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-300 bg-white disabled:opacity-30 disabled:cursor-not-allowed hover:bg-gray-100 transition-colors"
-          title="Zoom out"
-        >
-          <span class="text-lg font-bold text-gray-700">−</span>
-        </button>
-        <span class="text-xs text-gray-600 w-12 text-center">{{ zoomLabel }}</span>
-        <button
-          @click="zoomIn"
-          :disabled="zoomLevel === 5"
-          class="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-300 bg-white disabled:opacity-30 disabled:cursor-not-allowed hover:bg-gray-100 transition-colors"
-          title="Zoom in"
-        >
-          <span class="text-lg font-bold text-gray-700">+</span>
-        </button>
+    <div class="bg-white shadow-sm border-b border-gray-200 px-4 py-3 flex-shrink-0">
+      <div class="flex items-center justify-between mb-2">
+        <h1 class="text-xl font-bold text-gray-800">Activity Calendar</h1>
+        <div class="flex items-center gap-2">
+          <button
+            @click="zoomOut"
+            :disabled="zoomLevel === 0"
+            class="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-300 bg-white disabled:opacity-30 disabled:cursor-not-allowed hover:bg-gray-100 transition-colors"
+            title="Zoom out"
+          >
+            <span class="text-lg font-bold text-gray-700">−</span>
+          </button>
+          <span class="text-xs text-gray-600 w-12 text-center">{{ zoomLabel }}</span>
+          <button
+            @click="zoomIn"
+            :disabled="zoomLevel === 5"
+            class="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-300 bg-white disabled:opacity-30 disabled:cursor-not-allowed hover:bg-gray-100 transition-colors"
+            title="Zoom in"
+          >
+            <span class="text-lg font-bold text-gray-700">+</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Day navigation and view controls -->
+      <div class="flex items-center justify-between">
+        <!-- Navigation -->
+        <div class="flex items-center gap-2">
+          <button
+            @click="navigatePrevious"
+            class="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-300 bg-white hover:bg-gray-100 transition-colors"
+            title="Previous"
+          >
+            <span class="text-gray-700">‹</span>
+          </button>
+          <button
+            @click="navigateToday"
+            :disabled="dayOffset === 0"
+            class="px-3 py-1 text-sm rounded-lg border border-gray-300 bg-white hover:bg-gray-100 transition-colors disabled:opacity-50"
+            title="Go to today"
+          >
+            Today
+          </button>
+          <button
+            @click="navigateNext"
+            class="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-300 bg-white hover:bg-gray-100 transition-colors"
+            title="Next"
+          >
+            <span class="text-gray-700">›</span>
+          </button>
+        </div>
+
+        <!-- Day view selector -->
+        <div class="flex items-center gap-1 text-xs">
+          <button
+            v-for="count in [1, 3, 5]"
+            :key="count"
+            @click="dayViewCount = count"
+            class="px-3 py-1 rounded-lg border transition-colors"
+            :class="dayViewCount === count ? 'bg-blue-500 text-white border-blue-500' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100'"
+          >
+            {{ count }}d
+          </button>
+        </div>
       </div>
     </div>
 
     <!-- Calendar Content -->
-    <div v-if="store.groupedByDay.length === 0" class="flex-1 flex items-center justify-center">
+    <div v-if="visibleDays.length === 0" class="flex-1 flex items-center justify-center">
       <p class="text-gray-500 text-lg">No activity recorded yet</p>
     </div>
 
     <div
       v-else
-      class="flex-1 overflow-x-auto overflow-y-auto touch-pan-x touch-pan-y"
-      style="touch-action: pan-x pan-y;"
+      class="flex-1 overflow-x-hidden overflow-y-auto touch-pan-y"
+      style="touch-action: pan-y;"
       @touchstart="handleTouchStart"
       @touchmove="handleTouchMove"
       @touchend="handleTouchEnd"
     >
       <!-- Calendar Grid -->
-      <div class="flex p-4 gap-4 min-w-min" :style="{ height: calendarHeight }">
+      <div class="flex p-4 gap-4 justify-center" :style="{ height: calendarHeight }">
         <!-- Day Column -->
         <div
-          v-for="day in store.groupedByDay"
+          v-for="day in visibleDays"
           :key="day.date"
-          class="flex-shrink-0 w-32 flex flex-col"
+          class="flex-1 max-w-xs flex flex-col"
         >
           <!-- Day Header -->
           <div class="mb-3 text-center rounded-lg py-2 px-2" :class="isToday(day.date) ? 'bg-blue-100 border-2 border-blue-500' : 'bg-white border border-gray-200'">
@@ -241,6 +285,8 @@ const editActivityType = ref<ActivityType>('awake')
 const isOngoing = ref(false)
 const currentTime = ref(new Date())
 const zoomLevel = ref(2) // 0 (most out) to 5 (most in)
+const dayViewCount = ref(3) // 1, 3, or 5 days
+const dayOffset = ref(0) // Offset from today
 let intervalId: number | null = null
 
 // Touch/pinch zoom state
@@ -354,6 +400,22 @@ const zoomIn = () => {
 const zoomOut = () => {
   if (zoomLevel.value > 0) zoomLevel.value--
 }
+
+// Navigation functions
+const navigatePrevious = () => {
+  dayOffset.value -= dayViewCount.value
+}
+
+const navigateNext = () => {
+  dayOffset.value += dayViewCount.value
+}
+
+const navigateToday = () => {
+  dayOffset.value = 0
+}
+
+// Visible days based on current view settings
+const visibleDays = computed(() => store.getGroupedDays(dayViewCount.value, dayOffset.value))
 
 // Touch/pinch zoom handlers
 const getTouchDistance = (touch1: Touch, touch2: Touch): number => {
