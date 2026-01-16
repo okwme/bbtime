@@ -127,9 +127,14 @@
           <!-- Activity Type -->
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">Activity</label>
-            <div class="text-lg font-semibold text-gray-900">
-              {{ getActivityLabel(editingEntry.type) }}
-            </div>
+            <select
+              v-model="editActivityType"
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg"
+            >
+              <option value="sleeping">😴 Sleeping</option>
+              <option value="eating">🍼 Eating</option>
+              <option value="awake">👶 Awake</option>
+            </select>
           </div>
 
           <!-- Start Time -->
@@ -207,6 +212,7 @@ const store = useBabyTrackerStore()
 const editingEntry = ref<ActivityEntry | null>(null)
 const editStartTime = ref('')
 const editEndTime = ref('')
+const editActivityType = ref<ActivityType>('awake')
 const isOngoing = ref(false)
 const currentTime = ref(new Date())
 const zoomLevel = ref(2) // 0 (most out) to 5 (most in)
@@ -521,6 +527,7 @@ const getDaySummary = (day: DayData, type: ActivityType) => {
 const handleEditEntry = (entry: ActivityEntry) => {
   editingEntry.value = entry
   editStartTime.value = formatDateTimeLocal(entry.startTime)
+  editActivityType.value = entry.type
   isOngoing.value = !entry.endTime
   editEndTime.value = entry.endTime ? formatDateTimeLocal(entry.endTime) : ''
 }
@@ -539,6 +546,7 @@ const closeEditModal = () => {
   editingEntry.value = null
   editStartTime.value = ''
   editEndTime.value = ''
+  editActivityType.value = 'awake'
   isOngoing.value = false
 }
 
@@ -549,15 +557,16 @@ const handleSaveEdit = () => {
   const entry = editingEntry.value // Store reference for TypeScript
   const startTime = new Date(editStartTime.value)
   const endTime = isOngoing.value ? null : new Date(editEndTime.value)
+  const activityType = editActivityType.value
 
   // Check if editing the current ongoing activity
   if (entry.id === 'current-activity') {
     // Update current activity state in store
-    store.updateCurrentActivity(startTime, endTime)
+    store.updateCurrentActivity(startTime, endTime, activityType)
   } else {
     // Update completed entry
     if (endTime) {
-      store.updateEntry(entry.id, startTime, endTime)
+      store.updateEntry(entry.id, startTime, endTime, activityType)
     }
   }
 

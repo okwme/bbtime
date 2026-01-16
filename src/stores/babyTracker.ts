@@ -448,18 +448,36 @@ export const useBabyTrackerStore = defineStore('babyTracker', () => {
     saveToStorage()
   }
 
-  const updateEntry = (id: string, startTime: Date, endTime: Date) => {
+  const updateEntry = (id: string, startTime: Date, endTime: Date, type?: ActivityType) => {
     const entry = entries.value.find(e => e.id === id)
     if (entry) {
       entry.startTime = startTime
       entry.endTime = endTime
+      if (type) {
+        entry.type = type
+      }
       saveToStorage()
     }
   }
 
-  const updateCurrentActivity = (startTime: Date, endTime: Date | null) => {
+  const updateCurrentActivity = (startTime: Date, endTime: Date | null, type?: ActivityType) => {
     // Update the current activity start time
     currentEntryStartTime.value = startTime
+
+    // Update the current activity type if provided
+    if (type) {
+      // Check if type changed
+      if (type === 'eating') {
+        // If changing to eating, set isEating flag
+        if (currentActivity.value === 'sleeping') {
+          currentActivity.value = 'awake'
+        }
+        isEating.value = true
+      } else if (type === 'sleeping' || type === 'awake') {
+        currentActivity.value = type
+        isEating.value = false
+      }
+    }
 
     // If endTime is provided, end the current activity and start a new one
     if (endTime) {
