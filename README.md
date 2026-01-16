@@ -91,7 +91,17 @@ The app will be available at `http://localhost:5173/` during development.
 - Detailed list of each activity with timestamps and duration
 - Click any activity to edit or delete
 
-## Data Storage
+### Cloud Sync View
+
+- Create shareable rooms with 6-character codes (e.g., ABC-DEF)
+- Join existing rooms to sync with other caregivers
+- Auto-sync every 15 seconds
+- Real-time room status display
+- Copy room code to share easily
+
+## Data Storage & Cloud Sync
+
+### Local Storage (Always Active)
 
 All data is stored in browser localStorage and persists across sessions. Data includes:
 
@@ -100,6 +110,35 @@ All data is stored in browser localStorage and persists across sessions. Data in
 - Current entry start time
 
 **Note**: Clearing browser data will erase all tracked activities.
+
+### Cloud Sync (Optional)
+
+Cloud sync allows multiple devices to share the same baby tracking data using JSONBin.io.
+
+**Setup:**
+
+1. Get a free API key from [https://jsonbin.io/](https://jsonbin.io/)
+2. Go to the Sync tab in the app
+3. Enter your API key when prompted
+4. Create a new room or join an existing one
+
+**Features:**
+
+- ✅ Data persists indefinitely (not automatically deleted)
+- ✅ Free tier: 10,000 API requests
+- ✅ Auto-sync every 15 seconds
+- ✅ Smart merging (keeps all unique entries)
+- ✅ Works offline - syncs when reconnected
+- ✅ No authentication beyond simple room codes
+
+**Alternative setup (for deployment):**
+
+Copy `.env.example` to `.env` and add your API key:
+
+```bash
+cp .env.example .env
+# Edit .env and add your JSONBin API key
+```
 
 ## PWA Icons
 

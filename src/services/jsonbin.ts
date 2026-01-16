@@ -2,8 +2,29 @@ import type { ActivityEntry } from '@/types'
 
 const JSONBIN_API_BASE = 'https://api.jsonbin.io/v3'
 
-// No API key needed for public bins - JSONBin allows this for simple use cases
-// For production, you could add: 'X-Master-Key': 'YOUR_API_KEY'
+// Get API key from localStorage or environment
+// You can set this in the app settings or hardcode for simplicity
+function getApiKey(): string | null {
+  // Try localStorage first (user can set in settings)
+  const storedKey = localStorage.getItem('jsonbin-api-key')
+  if (storedKey) return storedKey
+
+  // Fallback to environment variable (for deployment)
+  return import.meta.env.VITE_JSONBIN_API_KEY || null
+}
+
+function getHeaders(): HeadersInit {
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+  }
+
+  const apiKey = getApiKey()
+  if (apiKey) {
+    headers['X-Master-Key'] = apiKey
+  }
+
+  return headers
+}
 
 export interface SyncData {
   entries: ActivityEntry[]
@@ -42,9 +63,7 @@ export async function createRoom(initialData: SyncData): Promise<RoomInfo> {
   try {
     const response = await fetch(`${JSONBIN_API_BASE}/b`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: getHeaders(),
       body: JSON.stringify({
         ...initialData,
         lastUpdated: new Date().toISOString()
@@ -74,9 +93,7 @@ export async function createRoom(initialData: SyncData): Promise<RoomInfo> {
 export async function fetchRoomData(binId: string): Promise<SyncData | null> {
   try {
     const response = await fetch(`${JSONBIN_API_BASE}/b/${binId}/latest`, {
-      headers: {
-        'Content-Type': 'application/json',
-      }
+      headers: getHeaders()
     })
 
     if (!response.ok) {
@@ -101,9 +118,7 @@ export async function updateRoomData(binId: string, data: SyncData): Promise<boo
   try {
     const response = await fetch(`${JSONBIN_API_BASE}/b/${binId}`, {
       method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: getHeaders(),
       body: JSON.stringify({
         ...data,
         lastUpdated: new Date().toISOString()
