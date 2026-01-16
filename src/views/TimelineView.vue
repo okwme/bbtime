@@ -174,7 +174,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useBabyTrackerStore } from '@/stores/babyTracker'
 import type { ActivityEntry, ActivityType, DayData } from '@/types'
 
@@ -182,6 +182,22 @@ const store = useBabyTrackerStore()
 const editingEntry = ref<ActivityEntry | null>(null)
 const editStartTime = ref('')
 const editEndTime = ref('')
+const currentTime = ref(new Date())
+let intervalId: number | null = null
+
+// Update current time every second to trigger reactivity for ongoing activities
+onMounted(() => {
+  store.initialize()
+  intervalId = window.setInterval(() => {
+    currentTime.value = new Date()
+  }, 1000)
+})
+
+onUnmounted(() => {
+  if (intervalId) {
+    clearInterval(intervalId)
+  }
+})
 
 const formatDayOfWeek = (dateStr: string) => {
   const date = new Date(dateStr + 'T00:00:00')
@@ -244,7 +260,8 @@ const getColumnStyle = (entry: ActivityEntry) => {
   dayStart.setHours(0, 0, 0, 0)
 
   const startMinutes = (new Date(entry.startTime).getTime() - dayStart.getTime()) / 60000
-  const endTime = entry.endTime ? new Date(entry.endTime) : new Date()
+  // Use currentTime for ongoing activities to trigger reactivity
+  const endTime = entry.endTime ? new Date(entry.endTime) : currentTime.value
   const endMinutes = (endTime.getTime() - dayStart.getTime()) / 60000
 
   const topPercent = (startMinutes / 1440) * 100
@@ -257,12 +274,21 @@ const getColumnStyle = (entry: ActivityEntry) => {
 }
 
 const getDuration = (entry: ActivityEntry) => {
-  if (!entry.endTime) return 'Ongoing'
-
-  const diff = new Date(entry.endTime).getTime() - new Date(entry.startTime).getTime()
+  // Use currentTime for ongoing activities to show live duration
+  const endTime = entry.endTime ? new Date(entry.endTime) : currentTime.value
+  const diff = endTime.getTime() - new Date(entry.startTime).getTime()
   const minutes = Math.floor(diff / 60000)
   const hours = Math.floor(minutes / 60)
   const mins = minutes % 60
+
+  if (!entry.endTime) {
+    // Show ongoing with live time
+    if (hours > 0) {
+      return `${hours}h ${mins}m (ongoing)`
+    } else {
+      return `${mins}m (ongoing)`
+    }
+  }
 
   if (hours > 0) {
     return `${hours}h ${mins}m`
@@ -276,7 +302,8 @@ const getDaySummary = (day: DayData, type: ActivityType) => {
   if (entries.length === 0) return '-'
 
   const totalMinutes = entries.reduce((sum, entry) => {
-    const endTime = entry.endTime ? new Date(entry.endTime) : new Date()
+    // Use currentTime for ongoing activities
+    const endTime = entry.endTime ? new Date(entry.endTime) : currentTime.value
     const duration = (endTime.getTime() - new Date(entry.startTime).getTime()) / 60000
     return sum + duration
   }, 0)

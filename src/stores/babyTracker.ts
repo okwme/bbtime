@@ -255,6 +255,7 @@ export const useBabyTrackerStore = defineStore('babyTracker', () => {
   const groupedByDay = computed<DayData[]>(() => {
     const groups = new Map<string, ActivityEntry[]>()
 
+    // Add all completed entries
     entries.value.forEach(entry => {
       const dateKey = entry.startTime.toISOString().split('T')[0] as string
       if (!groups.has(dateKey)) {
@@ -265,6 +266,22 @@ export const useBabyTrackerStore = defineStore('babyTracker', () => {
         group.push(entry)
       }
     })
+
+    // Add current ongoing activity
+    const currentEntry: ActivityEntry = {
+      id: 'current-activity',
+      type: currentActivityType.value,
+      startTime: currentEntryStartTime.value,
+      endTime: null // Ongoing
+    }
+    const currentDateKey = currentEntryStartTime.value.toISOString().split('T')[0] as string
+    if (!groups.has(currentDateKey)) {
+      groups.set(currentDateKey, [])
+    }
+    const currentGroup = groups.get(currentDateKey)
+    if (currentGroup) {
+      currentGroup.push(currentEntry)
+    }
 
     return Array.from(groups.entries())
       .map(([date, entries]) => ({
