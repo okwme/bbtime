@@ -149,7 +149,7 @@ const eatingButtonText = computed(() => {
 
 const formattedElapsedTime = computed(() => {
   const diff = currentTime.value.getTime() - store.currentEntryStartTime.getTime()
-  const seconds = Math.floor(diff / 1000)
+  const seconds = Math.max(0, Math.floor(diff / 1000))
   const minutes = Math.floor(seconds / 60)
   const hours = Math.floor(minutes / 60)
 
