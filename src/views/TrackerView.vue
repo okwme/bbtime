@@ -3,6 +3,12 @@
     <!-- Header -->
     <div class="bg-white shadow-sm border-b border-gray-200 px-4 py-4 flex-shrink-0">
       <h1 class="text-2xl font-bold text-gray-800 text-center">Baby Time Tracker</h1>
+      <div v-if="store.isConnectedToRoom" class="text-center mt-2">
+        <span class="inline-flex items-center text-xs bg-green-100 text-green-700 px-3 py-1 rounded-full">
+          <span class="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
+          Room: {{ store.roomInfo?.roomCode }}
+        </span>
+      </div>
     </div>
 
     <!-- Current Status Display -->

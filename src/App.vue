@@ -30,6 +30,15 @@ const route = useRoute()
         <div class="nav-icon">📊</div>
         <div class="nav-label">Timeline</div>
       </router-link>
+
+      <router-link
+        to="/settings"
+        class="nav-item"
+        :class="{ active: route.name === 'settings' }"
+      >
+        <div class="nav-icon">⚙️</div>
+        <div class="nav-label">Sync</div>
+      </router-link>
     </nav>
   </div>
 </template>

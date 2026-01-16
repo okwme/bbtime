@@ -1,8 +1,11 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { ActivityEntry, ActivityType, DayData } from '@/types'
+import { createRoom, fetchRoomData, updateRoomData, mergeData, parseRoomCode, type SyncData, type RoomInfo } from '@/services/jsonbin'
 
 const STORAGE_KEY = 'baby-tracker-data'
+const ROOM_KEY = 'baby-tracker-room'
+const SYNC_INTERVAL = 15000 // 15 seconds
 
 export const useBabyTrackerStore = defineStore('babyTracker', () => {
   // State
@@ -10,6 +13,13 @@ export const useBabyTrackerStore = defineStore('babyTracker', () => {
   const currentActivity = ref<ActivityType>('awake')
   const isEating = ref(false)
   const currentEntryStartTime = ref<Date>(new Date())
+
+  // Sync state
+  const roomInfo = ref<RoomInfo | null>(null)
+  const isSyncing = ref(false)
+  const lastSyncTime = ref<Date | null>(null)
+  const syncError = ref<string | null>(null)
+  let syncInterval: number | null = null
 
   // Load from localStorage on initialization
   const loadFromStorage = () => {
@@ -30,6 +40,13 @@ export const useBabyTrackerStore = defineStore('babyTracker', () => {
           currentEntryStartTime.value = new Date(data.currentEntryStartTime)
         }
       }
+
+      // Load room info
+      const storedRoom = localStorage.getItem(ROOM_KEY)
+      if (storedRoom) {
+        roomInfo.value = JSON.parse(storedRoom)
+        startAutoSync()
+      }
     } catch (error) {
       console.error('Error loading from storage:', error)
     }
@@ -45,9 +62,188 @@ export const useBabyTrackerStore = defineStore('babyTracker', () => {
         currentEntryStartTime: currentEntryStartTime.value
       }
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
+
+      // Auto-sync if connected to room
+      if (roomInfo.value) {
+        syncToCloud()
+      }
     } catch (error) {
       console.error('Error saving to storage:', error)
     }
+  }
+
+  // Convert store state to SyncData format
+  const toSyncData = (): SyncData => {
+    return {
+      entries: entries.value.map(e => ({
+        ...e,
+        startTime: e.startTime,
+        endTime: e.endTime
+      })),
+      currentActivity: currentActivity.value,
+      isEating: isEating.value,
+      currentEntryStartTime: currentEntryStartTime.value.toISOString(),
+      lastUpdated: new Date().toISOString()
+    }
+  }
+
+  // Apply SyncData to store state
+  const fromSyncData = (data: SyncData) => {
+    entries.value = data.entries.map(entry => ({
+      ...entry,
+      startTime: new Date(entry.startTime),
+      endTime: entry.endTime ? new Date(entry.endTime) : null
+    }))
+    currentActivity.value = data.currentActivity
+    isEating.value = data.isEating
+    currentEntryStartTime.value = new Date(data.currentEntryStartTime)
+    saveToStorage()
+  }
+
+  // Sync to cloud
+  const syncToCloud = async () => {
+    if (!roomInfo.value || isSyncing.value) return
+
+    try {
+      isSyncing.value = true
+      syncError.value = null
+
+      const localData = toSyncData()
+      const success = await updateRoomData(roomInfo.value.binId, localData)
+
+      if (success) {
+        lastSyncTime.value = new Date()
+      }
+    } catch (error) {
+      console.error('Sync error:', error)
+      syncError.value = 'Failed to sync'
+    } finally {
+      isSyncing.value = false
+    }
+  }
+
+  // Sync from cloud
+  const syncFromCloud = async () => {
+    if (!roomInfo.value || isSyncing.value) return
+
+    try {
+      isSyncing.value = true
+      syncError.value = null
+
+      const remoteData = await fetchRoomData(roomInfo.value.binId)
+      if (!remoteData) {
+        syncError.value = 'Room not found'
+        return
+      }
+
+      const localData = toSyncData()
+      const merged = mergeData(localData, remoteData)
+
+      fromSyncData(merged)
+
+      // Push merged data back
+      await updateRoomData(roomInfo.value.binId, merged)
+      lastSyncTime.value = new Date()
+    } catch (error) {
+      console.error('Sync error:', error)
+      syncError.value = 'Failed to sync'
+    } finally {
+      isSyncing.value = false
+    }
+  }
+
+  // Start auto-sync
+  const startAutoSync = () => {
+    if (syncInterval) return
+
+    // Initial sync
+    syncFromCloud()
+
+    // Set up interval
+    syncInterval = window.setInterval(() => {
+      syncFromCloud()
+    }, SYNC_INTERVAL)
+  }
+
+  // Stop auto-sync
+  const stopAutoSync = () => {
+    if (syncInterval) {
+      clearInterval(syncInterval)
+      syncInterval = null
+    }
+  }
+
+  // Create a new room
+  const createNewRoom = async () => {
+    try {
+      isSyncing.value = true
+      syncError.value = null
+
+      const initialData = toSyncData()
+      const newRoomInfo = await createRoom(initialData)
+
+      roomInfo.value = newRoomInfo
+      localStorage.setItem(ROOM_KEY, JSON.stringify(newRoomInfo))
+
+      startAutoSync()
+
+      return newRoomInfo
+    } catch (error) {
+      console.error('Error creating room:', error)
+      syncError.value = 'Failed to create room'
+      throw error
+    } finally {
+      isSyncing.value = false
+    }
+  }
+
+  // Join an existing room
+  const joinRoom = async (roomCode: string) => {
+    try {
+      isSyncing.value = true
+      syncError.value = null
+
+      const binId = parseRoomCode(roomCode)
+      const remoteData = await fetchRoomData(binId)
+
+      if (!remoteData) {
+        syncError.value = 'Room not found'
+        throw new Error('Room not found')
+      }
+
+      // Merge with local data
+      const localData = toSyncData()
+      const merged = mergeData(localData, remoteData)
+
+      fromSyncData(merged)
+
+      // Save room info
+      const newRoomInfo: RoomInfo = { binId, roomCode }
+      roomInfo.value = newRoomInfo
+      localStorage.setItem(ROOM_KEY, JSON.stringify(newRoomInfo))
+
+      // Push merged data
+      await updateRoomData(binId, merged)
+
+      startAutoSync()
+
+      return newRoomInfo
+    } catch (error) {
+      console.error('Error joining room:', error)
+      syncError.value = 'Failed to join room'
+      throw error
+    } finally {
+      isSyncing.value = false
+    }
+  }
+
+  // Leave current room
+  const leaveRoom = () => {
+    stopAutoSync()
+    roomInfo.value = null
+    lastSyncTime.value = null
+    syncError.value = null
+    localStorage.removeItem(ROOM_KEY)
   }
 
   // Computed
@@ -83,6 +279,8 @@ export const useBabyTrackerStore = defineStore('babyTracker', () => {
     const diff = now.getTime() - currentEntryStartTime.value.getTime()
     return Math.floor(diff / 1000) // seconds
   })
+
+  const isConnectedToRoom = computed(() => roomInfo.value !== null)
 
   // Actions
   const toggleSleepAwake = () => {
@@ -173,16 +371,30 @@ export const useBabyTrackerStore = defineStore('babyTracker', () => {
     isEating,
     currentEntryStartTime,
 
+    // Sync state
+    roomInfo,
+    isSyncing,
+    lastSyncTime,
+    syncError,
+
     // Computed
     currentActivityType,
     groupedByDay,
     elapsedTime,
+    isConnectedToRoom,
 
     // Actions
     toggleSleepAwake,
     toggleEating,
     updateEntry,
     deleteEntry,
-    initialize
+    initialize,
+
+    // Sync actions
+    createNewRoom,
+    joinRoom,
+    leaveRoom,
+    syncToCloud,
+    syncFromCloud
   }
 })
