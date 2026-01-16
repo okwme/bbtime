@@ -541,12 +541,14 @@ export const useBabyTrackerStore = defineStore('babyTracker', () => {
     }
 
     // Auto-join default room if not already connected
+    // Note: Set the room code and full bin ID in jsonbin.ts KNOWN_ROOM_MAPPINGS first
     const DEFAULT_ROOM_CODE = '6F4-76B'
-    if (!roomInfo.value) {
+    if (!roomInfo.value && DEFAULT_ROOM_CODE) {
       try {
         await joinRoom(DEFAULT_ROOM_CODE)
+        console.log('Connected to default room:', DEFAULT_ROOM_CODE)
       } catch (error) {
-        console.warn('Could not auto-join default room:', error)
+        console.warn('Could not auto-join default room. Make sure to add the full bin ID to KNOWN_ROOM_MAPPINGS in jsonbin.ts:', error)
         // Continue without sync - this is non-blocking
       }
     }

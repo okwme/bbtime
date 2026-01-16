@@ -52,9 +52,28 @@ export function formatRoomCode(binId: string): string {
 }
 
 /**
+ * Known room code mappings to full bin IDs
+ * Add pre-created rooms here for easy sharing
+ * Format: 'ROOM-CODE': 'full-jsonbin-bin-id'
+ */
+const KNOWN_ROOM_MAPPINGS: Record<string, string> = {
+  // TODO: Add your room's full bin ID here
+  // '6F4-76B': 'YOUR_FULL_BIN_ID_HERE',
+}
+
+/**
  * Extract bin ID from room code
+ * First checks known mappings, then falls back to parsing
  */
 export function parseRoomCode(roomCode: string): string {
+  const normalized = roomCode.toUpperCase().trim()
+
+  // Check if this is a known room code
+  if (KNOWN_ROOM_MAPPINGS[normalized]) {
+    return KNOWN_ROOM_MAPPINGS[normalized]
+  }
+
+  // Otherwise, assume it's a shortened code or full bin ID
   return roomCode.replace('-', '').toLowerCase()
 }
 
