@@ -1,42 +1,126 @@
-# baby-time
+# Baby Time Tracker
 
-This template should help get you started developing with Vue 3 in Vite.
+A Progressive Web App (PWA) for tracking baby sleep and eating times. Designed for iPhone home screen use with offline support and persistent local storage.
 
-## Recommended IDE Setup
+## Features
 
-[VS Code](https://code.visualstudio.com/) + [Vue (Official)](https://marketplace.visualstudio.com/items?itemName=Vue.volar) (and disable Vetur).
+- **Real-time Tracking**: Stopwatch-style interface that continuously tracks baby's state (sleeping, awake, or eating)
+- **State Management**:
+  - Toggle between sleeping and awake states
+  - Track eating as a subset of awake time
+  - All state changes are automatically saved
+- **Visual Timeline**: Color-coded daily view showing activity blocks throughout each day
+- **Editable Entries**: Click any activity to edit start/end times or delete
+- **Offline Support**: Works without internet connection once installed
+- **Persistent Storage**: All data stored locally on your device
+- **Mobile-First Design**: Optimized for iPhone and mobile devices
+- **PWA Installable**: Add to home screen for app-like experience
 
-## Recommended Browser Setup
+## Technology Stack
 
-- Chromium-based browsers (Chrome, Edge, Brave, etc.):
-  - [Vue.js devtools](https://chromewebstore.google.com/detail/vuejs-devtools/nhdogjmejiglipccpnnnanhbledajbpd)
-  - [Turn on Custom Object Formatter in Chrome DevTools](http://bit.ly/object-formatters)
-- Firefox:
-  - [Vue.js devtools](https://addons.mozilla.org/en-US/firefox/addon/vue-js-devtools/)
-  - [Turn on Custom Object Formatter in Firefox DevTools](https://fxdx.dev/firefox-devtools-custom-object-formatters/)
+- Vue.js 3 with Composition API
+- TypeScript for type safety
+- Tailwind CSS 4 for styling
+- Pinia for state management
+- Vite for build tooling
+- vite-plugin-pwa for PWA functionality
 
-## Type Support for `.vue` Imports in TS
+## Getting Started
 
-TypeScript cannot handle type information for `.vue` imports by default, so we replace the `tsc` CLI with `vue-tsc` for type checking. In editors, we need [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar) to make the TypeScript language service aware of `.vue` types.
+### Prerequisites
 
-## Customize configuration
+- Node.js 20.19.0 or 22.12.0+
+- npm
 
-See [Vite Configuration Reference](https://vite.dev/config/).
+### Installation
 
-## Project Setup
-
-```sh
+```bash
+# Install dependencies
 npm install
-```
 
-### Compile and Hot-Reload for Development
-
-```sh
+# Run development server
 npm run dev
-```
 
-### Type-Check, Compile and Minify for Production
-
-```sh
+# Build for production
 npm run build
+
+# Preview production build
+npm run preview
 ```
+
+## Usage
+
+### Development
+
+The app will be available at `http://localhost:5173/` during development.
+
+### Production Deployment
+
+1. Build the app: `npm run build`
+2. Deploy the `dist` folder to your hosting service
+3. Ensure your server is configured for PWA:
+   - Serve over HTTPS
+   - Serve manifest.webmanifest with correct MIME type
+   - Configure service worker caching
+
+### Installing on iPhone
+
+1. Open the app in Safari
+2. Tap the Share button
+3. Scroll down and tap "Add to Home Screen"
+4. Name it "BabyTime" and tap Add
+5. The app icon will appear on your home screen
+
+## App Views
+
+### Tracker View (Home)
+
+- Large status circle showing current activity (sleeping, awake, or eating)
+- Real-time elapsed time counter
+- "Sleep" / "Wake Up" toggle button
+- "Start Eating" / "Stop Eating" button (disabled during sleep)
+- Color coding:
+  - 🌙 Blue: Sleeping
+  - ☀️ Amber: Awake
+  - 🍼 Green: Eating
+
+### Timeline View
+
+- Daily activity cards showing all recorded activities
+- Visual 24-hour timeline with color-coded blocks
+- Detailed list of each activity with timestamps and duration
+- Click any activity to edit or delete
+
+## Data Storage
+
+All data is stored in browser localStorage and persists across sessions. Data includes:
+
+- All activity entries (type, start time, end time)
+- Current activity state
+- Current entry start time
+
+**Note**: Clearing browser data will erase all tracked activities.
+
+## PWA Icons
+
+To complete the PWA setup, add the following icon files to the `public` folder:
+
+- `pwa-192x192.png` - 192x192px icon
+- `pwa-512x512.png` - 512x512px icon
+- `apple-touch-icon.png` - 180x180px icon for iOS
+- `favicon.ico` - Standard favicon
+
+## Development Notes
+
+- The app uses Vue Router for navigation between Tracker and Timeline views
+- Bottom navigation bar provides easy switching between views
+- All times are stored as JavaScript Date objects
+- The app automatically groups activities by day for timeline display
+
+## License
+
+MIT
+
+## Credits
+
+Built with Vue.js and Vite
