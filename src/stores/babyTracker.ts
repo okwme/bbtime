@@ -210,12 +210,13 @@ export const useBabyTrackerStore = defineStore('babyTracker', () => {
   }
 
   // Join an existing room
-  const joinRoom = async (roomCode: string) => {
+  const joinRoom = async (binIdOrCode: string) => {
     try {
       isSyncing.value = true
       syncError.value = null
 
-      const binId = parseRoomCode(roomCode)
+      // Accept either full bin ID or use parseRoomCode for backwards compatibility
+      const binId = binIdOrCode.includes('-') ? parseRoomCode(binIdOrCode) : binIdOrCode.trim()
       const remoteData = await fetchRoomData(binId)
 
       if (!remoteData) {
@@ -229,7 +230,8 @@ export const useBabyTrackerStore = defineStore('babyTracker', () => {
 
       fromSyncData(merged)
 
-      // Save room info
+      // Save room info (generate roomCode for backwards compatibility)
+      const roomCode = formatRoomCode(binId)
       const newRoomInfo: RoomInfo = { binId, roomCode }
       roomInfo.value = newRoomInfo
       localStorage.setItem(ROOM_KEY, JSON.stringify(newRoomInfo))
@@ -541,14 +543,14 @@ export const useBabyTrackerStore = defineStore('babyTracker', () => {
     }
 
     // Auto-join default room if not already connected
-    // Note: Set the room code and full bin ID in jsonbin.ts KNOWN_ROOM_MAPPINGS first
-    const DEFAULT_ROOM_CODE = '6F4-76B'
-    if (!roomInfo.value && DEFAULT_ROOM_CODE) {
+    // Set this to your JSONBin bin ID to auto-connect on load
+    const DEFAULT_BIN_ID = '' // Leave empty to disable auto-join
+    if (!roomInfo.value && DEFAULT_BIN_ID) {
       try {
-        await joinRoom(DEFAULT_ROOM_CODE)
-        console.log('Connected to default room:', DEFAULT_ROOM_CODE)
+        await joinRoom(DEFAULT_BIN_ID)
+        console.log('Connected to default room')
       } catch (error) {
-        console.warn('Could not auto-join default room. Make sure to add the full bin ID to KNOWN_ROOM_MAPPINGS in jsonbin.ts:', error)
+        console.warn('Could not auto-join default room:', error)
         // Continue without sync - this is non-blocking
       }
     }

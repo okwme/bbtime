@@ -6,7 +6,7 @@
       <div v-if="store.isConnectedToRoom" class="text-center mt-2">
         <span class="inline-flex items-center text-xs bg-green-100 text-green-700 px-3 py-1 rounded-full">
           <span class="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
-          Room: {{ store.roomInfo?.roomCode }}
+          Synced
         </span>
       </div>
     </div>

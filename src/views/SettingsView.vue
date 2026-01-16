@@ -102,17 +102,17 @@
             <h2 class="text-lg font-bold text-gray-800">Connected to Room</h2>
           </div>
 
-          <!-- Room Code Display -->
+          <!-- Room ID Display -->
           <div class="bg-gray-100 rounded-lg p-4 mb-4">
-            <div class="text-sm text-gray-600 mb-1">Room Code</div>
-            <div class="text-3xl font-bold text-center text-gray-900 tracking-widest">
-              {{ store.roomInfo?.roomCode }}
+            <div class="text-sm text-gray-600 mb-1">Room ID</div>
+            <div class="text-sm font-mono text-center text-gray-900 break-all px-2 py-2 bg-white rounded border border-gray-200">
+              {{ store.roomInfo?.binId }}
             </div>
             <button
               @click="copyRoomCode"
               class="w-full mt-3 bg-blue-500 text-white py-2 px-4 rounded-lg text-sm font-medium"
             >
-              {{ copied ? '✓ Copied!' : '📋 Copy Code' }}
+              {{ copied ? '✓ Copied!' : '📋 Copy ID' }}
             </button>
           </div>
 
@@ -146,7 +146,7 @@
         <div class="bg-blue-50 rounded-lg p-4">
           <h3 class="font-bold text-blue-900 mb-2">Share with Others</h3>
           <p class="text-sm text-blue-800">
-            Share your room code with other caregivers so everyone sees the same data in real-time!
+            Share your room ID with other caregivers so everyone sees the same data in real-time!
           </p>
         </div>
       </div>
@@ -172,16 +172,14 @@
         <div class="bg-white rounded-xl shadow-md p-6">
           <h2 class="text-lg font-bold text-gray-800 mb-3">Join Existing Room</h2>
           <p class="text-sm text-gray-600 mb-4">
-            Enter a room code to sync with others
+            Enter a room ID to sync with others
           </p>
 
           <input
             v-model="joinCode"
             type="text"
-            placeholder="XXX-XXX"
-            maxlength="7"
-            class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg text-center text-2xl font-bold tracking-widest uppercase mb-4"
-            @input="formatJoinCode"
+            placeholder="Paste room ID here"
+            class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg text-sm font-mono mb-4"
           />
 
           <button
@@ -232,8 +230,9 @@ const notifSettings = ref<NotificationSettings>({ ...store.notificationSettings 
 const notificationPermission = ref(getNotificationPermission())
 
 const isValidJoinCode = computed(() => {
-  const cleaned = joinCode.value.replace('-', '')
-  return cleaned.length === 6
+  // Bin IDs are typically 24 characters (hexadecimal)
+  const cleaned = joinCode.value.trim()
+  return cleaned.length >= 20
 })
 
 const syncStatusClass = computed(() => {
@@ -265,21 +264,6 @@ const formatSyncTime = computed(() => {
   return `${hours}h ago`
 })
 
-const formatJoinCode = () => {
-  // Remove any non-alphanumeric characters
-  let value = joinCode.value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase()
-
-  // Limit to 6 characters
-  value = value.slice(0, 6)
-
-  // Add dash after 3rd character
-  if (value.length > 3) {
-    value = value.slice(0, 3) + '-' + value.slice(3)
-  }
-
-  joinCode.value = value
-}
-
 const handleCreateRoom = async () => {
   try {
     joinError.value = ''
@@ -294,24 +278,25 @@ const handleJoinRoom = async () => {
 
   try {
     joinError.value = ''
-    await store.joinRoom(joinCode.value)
+    // Use bin ID directly (trim whitespace)
+    await store.joinRoom(joinCode.value.trim())
     joinCode.value = ''
   } catch (error) {
-    joinError.value = 'Room not found. Check the code and try again.'
+    joinError.value = 'Room not found. Check the ID and try again.'
   }
 }
 
 const handleLeaveRoom = () => {
-  if (confirm('Leave this room? You can rejoin later with the room code.')) {
+  if (confirm('Leave this room? You can rejoin later with the room ID.')) {
     store.leaveRoom()
   }
 }
 
 const copyRoomCode = async () => {
-  if (!store.roomInfo?.roomCode) return
+  if (!store.roomInfo?.binId) return
 
   try {
-    await navigator.clipboard.writeText(store.roomInfo.roomCode)
+    await navigator.clipboard.writeText(store.roomInfo.binId)
     copied.value = true
     setTimeout(() => {
       copied.value = false
@@ -319,7 +304,7 @@ const copyRoomCode = async () => {
   } catch (error) {
     // Fallback for older browsers
     const textarea = document.createElement('textarea')
-    textarea.value = store.roomInfo.roomCode
+    textarea.value = store.roomInfo.binId
     document.body.appendChild(textarea)
     textarea.select()
     document.execCommand('copy')
