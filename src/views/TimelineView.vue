@@ -86,8 +86,14 @@
             </div>
 
             <!-- Time markers on the side -->
-            <div class="absolute inset-y-0 left-0 flex flex-col pointer-events-none px-1" :class="timeMarkerClass" style="justify-content: space-between;">
-              <div v-for="marker in timeMarkers" :key="marker.label" :class="marker.emphasized ? 'text-gray-900' : 'text-gray-700'">
+            <div class="absolute inset-y-0 left-0 pointer-events-none px-1" :class="timeMarkerClass">
+              <div
+                v-for="(marker, index) in timeMarkers"
+                :key="`${marker.label}-${index}`"
+                class="absolute left-0 transform -translate-y-1/2"
+                :style="{ top: `${marker.position}%` }"
+                :class="marker.emphasized ? 'text-gray-900' : 'text-gray-700'"
+              >
                 {{ marker.label }}
               </div>
             </div>
@@ -254,7 +260,7 @@ const timeMarkers = computed(() => {
   if (!config) return []
 
   const interval = config.interval
-  const markers: { label: string; emphasized: boolean }[] = []
+  const markers: { label: string; emphasized: boolean; position: number }[] = []
 
   if (interval >= 1) {
     // Hourly or less frequent - generate exactly the right number of markers
@@ -266,7 +272,8 @@ const timeMarkers = computed(() => {
       const displayHour = hour === 0 ? 12 : hour === 24 ? 12 : hour > 12 ? hour - 12 : hour
       const period = hour < 12 || hour === 24 ? 'a' : 'p'
       const emphasized = hour % 6 === 0
-      markers.push({ label: `${displayHour}${period}`, emphasized })
+      const position = (hour / 24) * 100 // Percentage position
+      markers.push({ label: `${displayHour}${period}`, emphasized, position })
     }
   } else {
     // Sub-hourly (30min, 15min, 5min)
@@ -285,10 +292,12 @@ const timeMarkers = computed(() => {
       let displayHour = hour === 0 ? 12 : hour === 24 ? 12 : hour > 12 ? hour - 12 : hour
       const period = hour < 12 || hour === 24 ? 'a' : 'p'
 
+      const position = (mins / totalMinutes) * 100 // Percentage position
+
       if (minute === 0) {
-        markers.push({ label: `${displayHour}${period}`, emphasized: hour % 6 === 0 })
+        markers.push({ label: `${displayHour}${period}`, emphasized: hour % 6 === 0, position })
       } else {
-        markers.push({ label: `:${String(minute).padStart(2, '0')}`, emphasized: false })
+        markers.push({ label: `:${String(minute).padStart(2, '0')}`, emphasized: false, position })
       }
     }
   }
@@ -360,8 +369,10 @@ onUnmounted(() => {
 
 const isToday = (dateStr: string) => {
   const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const todayStr = today.toISOString().split('T')[0]
+  const year = today.getFullYear()
+  const month = String(today.getMonth() + 1).padStart(2, '0')
+  const day = String(today.getDate()).padStart(2, '0')
+  const todayStr = `${year}-${month}-${day}`
   return dateStr === todayStr
 }
 

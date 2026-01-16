@@ -267,11 +267,11 @@ export const useBabyTrackerStore = defineStore('babyTracker', () => {
   const groupedByDay = computed<DayData[]>(() => {
     const groups = new Map<string, ActivityEntry[]>()
 
-    // Generate date range: 7 days before to 7 days after today
+    // Generate date range: 3 days before to 3 days after today (7 total days to fit ~3 on screen)
     const today = new Date()
     today.setHours(0, 0, 0, 0)
 
-    for (let i = -7; i <= 7; i++) {
+    for (let i = -3; i <= 3; i++) {
       const date = new Date(today)
       date.setDate(today.getDate() + i)
       const dateKey = date.toISOString().split('T')[0] as string
@@ -311,7 +311,7 @@ export const useBabyTrackerStore = defineStore('babyTracker', () => {
         date,
         entries: entries.sort((a, b) => a.startTime.getTime() - b.startTime.getTime())
       }))
-      .sort((a, b) => b.date.localeCompare(a.date))
+      .sort((a, b) => a.date.localeCompare(b.date)) // Changed to ascending order (old to new, left to right)
   })
 
   const elapsedTime = computed(() => {
