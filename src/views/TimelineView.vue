@@ -54,12 +54,13 @@
 
           <!-- 24-Hour Column -->
           <div class="flex-1 relative bg-white rounded-lg border-2 border-gray-200 overflow-hidden">
-            <!-- Hour grid lines (faint) -->
-            <div class="absolute inset-0 flex flex-col">
+            <!-- Hour grid lines (faint) - matches time markers -->
+            <div class="absolute inset-0 flex flex-col pointer-events-none">
               <div
-                v-for="hour in 24"
-                :key="hour"
-                class="flex-1 border-b border-gray-100 last:border-b-0"
+                v-for="(marker, index) in timeMarkers"
+                :key="`grid-${index}`"
+                class="flex-1 border-b border-gray-100"
+                :class="{ 'last:border-b-0': index === timeMarkers.length - 1 }"
               ></div>
             </div>
 
@@ -240,31 +241,36 @@ const timeMarkers = computed(() => {
   const markers: { label: string; emphasized: boolean }[] = []
 
   if (interval >= 1) {
-    // Hourly or less frequent
-    const totalMarkers = Math.floor(24 / interval) + 1
-    for (let i = 0; i < totalMarkers && i * interval < 24; i++) {
+    // Hourly or less frequent - generate exactly the right number of markers
+    const count = Math.floor(24 / interval)
+    for (let i = 0; i <= count; i++) {
       const hour = i * interval
-      const h = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour
-      const period = hour < 12 ? 'a' : 'p'
+      if (hour > 24) break
+
+      const displayHour = hour === 0 ? 12 : hour === 24 ? 12 : hour > 12 ? hour - 12 : hour
+      const period = hour < 12 || hour === 24 ? 'a' : 'p'
       const emphasized = hour % 6 === 0
-      markers.push({ label: `${h}${period}`, emphasized })
+      markers.push({ label: `${displayHour}${period}`, emphasized })
     }
   } else {
     // Sub-hourly (30min, 15min, 5min)
     const minuteInterval = Math.round(interval * 60)
-    const totalMarkers = Math.floor((24 * 60) / minuteInterval) + 1
+    const totalMinutes = 24 * 60
+    const count = Math.floor(totalMinutes / minuteInterval)
 
-    for (let i = 0; i < totalMarkers; i++) {
-      const totalMinutes = i * minuteInterval
-      if (totalMinutes >= 24 * 60) break
+    for (let i = 0; i <= count; i++) {
+      const mins = i * minuteInterval
+      if (mins > totalMinutes) break
 
-      const hour = Math.floor(totalMinutes / 60)
-      const minute = totalMinutes % 60
-      const h = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour
-      const period = hour < 12 ? 'a' : 'p'
+      const hour = Math.floor(mins / 60)
+      const minute = mins % 60
+
+      // Handle hour display
+      let displayHour = hour === 0 ? 12 : hour === 24 ? 12 : hour > 12 ? hour - 12 : hour
+      const period = hour < 12 || hour === 24 ? 'a' : 'p'
 
       if (minute === 0) {
-        markers.push({ label: `${h}${period}`, emphasized: hour % 6 === 0 })
+        markers.push({ label: `${displayHour}${period}`, emphasized: hour % 6 === 0 })
       } else {
         markers.push({ label: `:${String(minute).padStart(2, '0')}`, emphasized: false })
       }
