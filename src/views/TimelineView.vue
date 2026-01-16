@@ -227,8 +227,15 @@ const zoomConfig = [
   { height: 4800, interval: 1/12, label: '5m' }    // Level 5: Every 5 minutes
 ]
 
-const calendarHeight = computed(() => `${zoomConfig[zoomLevel.value].height}px`)
-const zoomLabel = computed(() => zoomConfig[zoomLevel.value].label)
+const calendarHeight = computed(() => {
+  const config = zoomConfig[zoomLevel.value]
+  return config ? `${config.height}px` : '600px'
+})
+
+const zoomLabel = computed(() => {
+  const config = zoomConfig[zoomLevel.value]
+  return config ? config.label : '1h'
+})
 
 const timeMarkerClass = computed(() => {
   if (zoomLevel.value <= 1) return 'text-xs font-semibold'
@@ -237,7 +244,10 @@ const timeMarkerClass = computed(() => {
 })
 
 const timeMarkers = computed(() => {
-  const interval = zoomConfig[zoomLevel.value].interval
+  const config = zoomConfig[zoomLevel.value]
+  if (!config) return []
+
+  const interval = config.interval
   const markers: { label: string; emphasized: boolean }[] = []
 
   if (interval >= 1) {
@@ -296,7 +306,7 @@ const getTouchDistance = (touch1: Touch, touch2: Touch): number => {
 }
 
 const handleTouchStart = (e: TouchEvent) => {
-  if (e.touches.length === 2) {
+  if (e.touches.length === 2 && e.touches[0] && e.touches[1]) {
     isPinching = true
     initialPinchDistance = getTouchDistance(e.touches[0], e.touches[1])
     initialZoomLevel = zoomLevel.value
@@ -305,7 +315,7 @@ const handleTouchStart = (e: TouchEvent) => {
 }
 
 const handleTouchMove = (e: TouchEvent) => {
-  if (isPinching && e.touches.length === 2) {
+  if (isPinching && e.touches.length === 2 && e.touches[0] && e.touches[1]) {
     const currentDistance = getTouchDistance(e.touches[0], e.touches[1])
     const distanceChange = currentDistance - initialPinchDistance
 
@@ -396,6 +406,7 @@ const getTextColorClass = (type: ActivityType) => {
 const visibleEntries = (entries: ActivityEntry[]) => {
   // Minimum duration threshold based on zoom level
   const minDurations = [30, 15, 5, 3, 2, 1] // minutes for levels 0-5
+  const minDuration = minDurations[zoomLevel.value] ?? 5 // Default to 5 minutes
 
   return entries.filter(entry => {
     // Always show ongoing activities (no endTime)
@@ -406,7 +417,7 @@ const visibleEntries = (entries: ActivityEntry[]) => {
     const durationMinutes = durationMs / 60000
 
     // Show based on zoom level threshold
-    return durationMinutes >= minDurations[zoomLevel.value]
+    return durationMinutes >= minDuration
   })
 }
 
@@ -472,12 +483,15 @@ const shouldShowDuration = (entry: ActivityEntry) => {
   // Only show duration if zoomed in enough AND block is tall enough
   if (zoomLevel.value < 2) return false
 
+  const config = zoomConfig[zoomLevel.value]
+  if (!config) return false
+
   const endTime = entry.endTime ? new Date(entry.endTime) : currentTime.value
   const durationMinutes = (endTime.getTime() - new Date(entry.startTime).getTime()) / 60000
 
   // Calculate pixel height of this block
   const heightPercent = (durationMinutes / 1440) * 100
-  const pixelHeight = (heightPercent / 100) * zoomConfig[zoomLevel.value].height
+  const pixelHeight = (heightPercent / 100) * config.height
 
   // Show duration if block is at least 40px tall
   return pixelHeight >= 40
@@ -532,17 +546,18 @@ const handleSaveEdit = () => {
   if (!editingEntry.value || !editStartTime.value) return
   if (!isOngoing.value && !editEndTime.value) return
 
+  const entry = editingEntry.value // Store reference for TypeScript
   const startTime = new Date(editStartTime.value)
   const endTime = isOngoing.value ? null : new Date(editEndTime.value)
 
   // Check if editing the current ongoing activity
-  if (editingEntry.value.id === 'current-activity') {
+  if (entry.id === 'current-activity') {
     // Update current activity state in store
     store.updateCurrentActivity(startTime, endTime)
   } else {
     // Update completed entry
     if (endTime) {
-      store.updateEntry(editingEntry.value.id, startTime, endTime)
+      store.updateEntry(entry.id, startTime, endTime)
     }
   }
 
@@ -552,8 +567,10 @@ const handleSaveEdit = () => {
 const handleDeleteEntry = () => {
   if (!editingEntry.value) return
 
+  const entry = editingEntry.value // Store reference for TypeScript
+
   if (confirm('Are you sure you want to delete this activity?')) {
-    store.deleteEntry(editingEntry.value.id)
+    store.deleteEntry(entry.id)
     closeEditModal()
   }
 }

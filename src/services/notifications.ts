@@ -54,7 +54,6 @@ export function showNotification(title: string, body: string, tag?: string) {
         badge: '/pwa-192x192.png',
         tag: tag || 'baby-tracker',
         requireInteraction: true, // Keep notification visible
-        vibrate: [200, 100, 200],
       })
     })
   } else {
