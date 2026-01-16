@@ -53,7 +53,10 @@
           </div>
 
           <!-- 24-Hour Column -->
-          <div class="flex-1 relative bg-white rounded-lg border-2 border-gray-200 overflow-hidden">
+          <div
+            class="flex-1 relative bg-white rounded-lg border-2 border-gray-200 overflow-hidden cursor-crosshair"
+            @mousedown="(e) => handleColumnMouseDown(e, day.date)"
+          >
             <!-- Hour grid lines (faint) - matches time markers -->
             <div class="absolute inset-0 flex flex-col pointer-events-none">
               <div
@@ -68,10 +71,14 @@
             <div
               v-for="entry in visibleEntries(day.entries)"
               :key="entry.id"
-              class="absolute cursor-pointer transition-opacity hover:opacity-90 flex flex-col items-center justify-center border-l-4 overflow-hidden"
-              :class="getActivityColorClass(entry.type)"
+              class="absolute transition-opacity hover:opacity-90 flex flex-col items-center justify-center border-l-4 overflow-hidden select-none"
+              :class="[
+                getActivityColorClass(entry.type),
+                entry.id === 'current-activity' ? 'cursor-pointer' : 'cursor-move hover:ring-2 hover:ring-blue-400'
+              ]"
               :style="getColumnStyle(entry)"
-              @click="handleEditEntry(entry)"
+              @mousedown="entry.id === 'current-activity' ? handleEditEntry(entry) : (e: MouseEvent) => handleBlockMouseDown(e, entry, day.date)"
+              @click.stop="entry.id === 'current-activity' ? handleEditEntry(entry) : null"
             >
               <span class="text-xs font-bold" :class="getTextColorClass(entry.type)">
                 {{ getActivityEmoji(entry.type) }}
@@ -82,6 +89,18 @@
                 :class="getTextColorClass(entry.type)"
               >
                 {{ getShortDuration(entry) }}
+              </span>
+            </div>
+
+            <!-- Drag preview -->
+            <div
+              v-if="dragState.isDragging && dragState.entry && dragState.dateKey === day.date"
+              class="absolute flex flex-col items-center justify-center border-l-4 overflow-hidden opacity-60 pointer-events-none ring-2 ring-blue-500"
+              :class="getActivityColorClass(dragState.entry.type)"
+              :style="getColumnStyle(dragState.entry)"
+            >
+              <span class="text-xs font-bold" :class="getTextColorClass(dragState.entry.type)">
+                {{ getActivityEmoji(dragState.entry.type) }}
               </span>
             </div>
 
@@ -229,6 +248,29 @@ let initialPinchDistance = 0
 let initialZoomLevel = 2
 let isPinching = false
 
+// Drag editing state
+interface DragState {
+  isDragging: boolean
+  mode: 'move' | 'resize-start' | 'resize-end' | 'create' | null
+  entry: ActivityEntry | null
+  originalStartTime: Date | null
+  originalEndTime: Date | null
+  dateKey: string | null
+  startY: number
+  currentY: number
+}
+
+const dragState = ref<DragState>({
+  isDragging: false,
+  mode: null,
+  entry: null,
+  originalStartTime: null,
+  originalEndTime: null,
+  dateKey: null,
+  startY: 0,
+  currentY: 0
+})
+
 // Zoom configuration
 const zoomConfig = [
   { height: 300, interval: 6, label: 'Day' },      // Level 0: Every 6 hours (12a, 6a, 12p, 6p)
@@ -351,6 +393,182 @@ const handleTouchEnd = (e: TouchEvent) => {
     isPinching = false
     initialPinchDistance = 0
   }
+}
+
+// Drag editing helper functions
+const snapToFiveMinutes = (date: Date): Date => {
+  const snapped = new Date(date)
+  const minutes = snapped.getMinutes()
+  const snappedMinutes = Math.round(minutes / 5) * 5
+  snapped.setMinutes(snappedMinutes, 0, 0)
+  return snapped
+}
+
+const yPositionToTime = (y: number, containerHeight: number, dateStr: string): Date => {
+  const config = zoomConfig[zoomLevel.value]
+  if (!config) return new Date()
+
+  // Calculate what percentage down the column we clicked
+  const percentage = Math.max(0, Math.min(1, y / containerHeight))
+
+  // Convert to minutes in the day (0-1440)
+  const minutesInDay = percentage * 1440
+
+  // Create date for this time
+  const date = new Date(dateStr + 'T00:00:00')
+  date.setMinutes(minutesInDay)
+
+  return snapToFiveMinutes(date)
+}
+
+const isNearEdge = (mouseY: number, blockTop: number, blockHeight: number): 'top' | 'bottom' | 'center' => {
+  const edgeThreshold = 8 // pixels
+  const distanceFromTop = mouseY - blockTop
+  const distanceFromBottom = (blockTop + blockHeight) - mouseY
+
+  if (distanceFromTop < edgeThreshold) return 'top'
+  if (distanceFromBottom < edgeThreshold) return 'bottom'
+  return 'center'
+}
+
+const hasOverlap = (entries: ActivityEntry[], excludeId?: string): boolean => {
+  const sortedEntries = entries
+    .filter(e => e.id !== excludeId && e.endTime !== null)
+    .sort((a, b) => a.startTime.getTime() - b.startTime.getTime())
+
+  for (let i = 0; i < sortedEntries.length - 1; i++) {
+    const current = sortedEntries[i]
+    const next = sortedEntries[i + 1]
+    if (current && next && current.endTime && current.endTime.getTime() > next.startTime.getTime()) {
+      return true
+    }
+  }
+  return false
+}
+
+// Drag editing event handlers
+const handleBlockMouseDown = (e: MouseEvent, entry: ActivityEntry, dateKey: string) => {
+  if (entry.id === 'current-activity') return // Don't drag current activity
+
+  e.stopPropagation()
+  const target = e.currentTarget as HTMLElement
+  const rect = target.getBoundingClientRect()
+  const relativeY = e.clientY - rect.top
+
+  const edge = isNearEdge(relativeY, 0, rect.height)
+
+  dragState.value = {
+    isDragging: true,
+    mode: edge === 'top' ? 'resize-start' : edge === 'bottom' ? 'resize-end' : 'move',
+    entry: { ...entry },
+    originalStartTime: new Date(entry.startTime),
+    originalEndTime: entry.endTime ? new Date(entry.endTime) : null,
+    dateKey,
+    startY: e.clientY,
+    currentY: e.clientY
+  }
+
+  document.addEventListener('mousemove', handleMouseMove)
+  document.addEventListener('mouseup', handleMouseUp)
+}
+
+const handleColumnMouseDown = (e: MouseEvent, dateKey: string) => {
+  if (dragState.value.isDragging) return
+
+  const target = e.currentTarget as HTMLElement
+  const rect = target.getBoundingClientRect()
+  const relativeY = e.clientY - rect.top
+
+  const startTime = yPositionToTime(relativeY, rect.height, dateKey)
+
+  // Create a new entry starting at clicked time
+  dragState.value = {
+    isDragging: true,
+    mode: 'create',
+    entry: {
+      id: crypto.randomUUID(),
+      type: 'awake',
+      startTime,
+      endTime: new Date(startTime.getTime() + 30 * 60000) // Default 30 min
+    },
+    originalStartTime: startTime,
+    originalEndTime: new Date(startTime.getTime() + 30 * 60000),
+    dateKey,
+    startY: e.clientY,
+    currentY: e.clientY
+  }
+
+  document.addEventListener('mousemove', handleMouseMove)
+  document.addEventListener('mouseup', handleMouseUp)
+}
+
+const handleMouseMove = (e: MouseEvent) => {
+  if (!dragState.value.isDragging || !dragState.value.entry) return
+
+  dragState.value.currentY = e.clientY
+
+  const deltaY = e.clientY - dragState.value.startY
+  const config = zoomConfig[zoomLevel.value]
+  if (!config) return
+
+  // Convert pixel delta to time delta (minutes)
+  const minutesPerPixel = 1440 / config.height
+  const deltaMinutes = Math.round((deltaY * minutesPerPixel) / 5) * 5 // Snap to 5 minutes
+
+  const entry = dragState.value.entry
+  const originalStart = dragState.value.originalStartTime
+  const originalEnd = dragState.value.originalEndTime
+
+  if (!originalStart) return
+
+  if (dragState.value.mode === 'move') {
+    // Move both start and end
+    entry.startTime = new Date(originalStart.getTime() + deltaMinutes * 60000)
+    if (originalEnd) {
+      entry.endTime = new Date(originalEnd.getTime() + deltaMinutes * 60000)
+    }
+  } else if (dragState.value.mode === 'resize-start') {
+    // Only move start time
+    const newStart = new Date(originalStart.getTime() + deltaMinutes * 60000)
+    if (!originalEnd || newStart.getTime() < originalEnd.getTime() - 5 * 60000) {
+      entry.startTime = newStart
+    }
+  } else if (dragState.value.mode === 'resize-end' || dragState.value.mode === 'create') {
+    // Only move end time
+    if (originalEnd) {
+      const newEnd = new Date(originalEnd.getTime() + deltaMinutes * 60000)
+      if (newEnd.getTime() > originalStart.getTime() + 5 * 60000) {
+        entry.endTime = newEnd
+      }
+    }
+  }
+}
+
+const handleMouseUp = () => {
+  if (!dragState.value.isDragging || !dragState.value.entry) {
+    dragState.value.isDragging = false
+    document.removeEventListener('mousemove', handleMouseMove)
+    document.removeEventListener('mouseup', handleMouseUp)
+    return
+  }
+
+  const entry = dragState.value.entry
+
+  if (dragState.value.mode === 'create') {
+    // Create new entry
+    if (entry.endTime) {
+      store.createEntry(entry.type, entry.startTime, entry.endTime)
+    }
+  } else {
+    // Update existing entry
+    if (entry.endTime) {
+      store.updateEntry(entry.id, entry.startTime, entry.endTime, entry.type)
+    }
+  }
+
+  dragState.value.isDragging = false
+  document.removeEventListener('mousemove', handleMouseMove)
+  document.removeEventListener('mouseup', handleMouseUp)
 }
 
 // Update current time every second to trigger reactivity for ongoing activities

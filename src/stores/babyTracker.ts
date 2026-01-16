@@ -505,6 +505,17 @@ export const useBabyTrackerStore = defineStore('babyTracker', () => {
     saveToStorage()
   }
 
+  const createEntry = (type: ActivityType, startTime: Date, endTime: Date) => {
+    const newEntry: ActivityEntry = {
+      id: crypto.randomUUID(),
+      type,
+      startTime,
+      endTime
+    }
+    entries.value.push(newEntry)
+    saveToStorage()
+  }
+
   const deleteEntry = (id: string) => {
     entries.value = entries.value.filter(e => e.id !== id)
     saveToStorage()
@@ -554,6 +565,7 @@ export const useBabyTrackerStore = defineStore('babyTracker', () => {
     toggleEating,
     updateEntry,
     updateCurrentActivity,
+    createEntry,
     deleteEntry,
     initialize,
 
