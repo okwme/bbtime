@@ -70,6 +70,8 @@ export default defineConfig({
   },
   server: {
     host: true,
+    port: 5173,
+    strictPort: false,
     allowedHosts: [
       '.trifle.zone',
       'b-5173.trifle.zone',
