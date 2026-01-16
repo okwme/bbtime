@@ -2,6 +2,12 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { ActivityEntry, ActivityType, DayData } from '@/types'
 import { createRoom, fetchRoomData, updateRoomData, mergeData, parseRoomCode, type SyncData, type RoomInfo } from '@/services/jsonbin'
+import {
+  loadNotificationSettings,
+  saveNotificationSettings,
+  showNotification,
+  type NotificationSettings
+} from '@/services/notifications'
 
 const STORAGE_KEY = 'baby-tracker-data'
 const ROOM_KEY = 'baby-tracker-room'
@@ -20,6 +26,12 @@ export const useBabyTrackerStore = defineStore('babyTracker', () => {
   const lastSyncTime = ref<Date | null>(null)
   const syncError = ref<string | null>(null)
   let syncInterval: number | null = null
+
+  // Notification state
+  const notificationSettings = ref<NotificationSettings>(loadNotificationSettings())
+  const lastAwakeAlert = ref<Date | null>(null)
+  const lastSleepAlert = ref<Date | null>(null)
+  let notificationCheckInterval: number | null = null
 
   // Load from localStorage on initialization
   const loadFromStorage = () => {
@@ -299,6 +311,75 @@ export const useBabyTrackerStore = defineStore('babyTracker', () => {
 
   const isConnectedToRoom = computed(() => roomInfo.value !== null)
 
+  // Notification functions
+  const checkNotifications = () => {
+    if (!notificationSettings.value.enabled) return
+
+    const now = new Date()
+    const elapsedMinutes = (now.getTime() - currentEntryStartTime.value.getTime()) / 60000
+
+    // Check awake alert
+    if (currentActivityType.value === 'awake' && elapsedMinutes >= notificationSettings.value.awakeAlertMinutes) {
+      // Only alert once per session, or if 30 minutes have passed since last alert
+      if (!lastAwakeAlert.value || (now.getTime() - lastAwakeAlert.value.getTime()) > 30 * 60000) {
+        const hours = Math.floor(elapsedMinutes / 60)
+        const mins = Math.floor(elapsedMinutes % 60)
+        const timeStr = hours > 0 ? `${hours}h ${mins}m` : `${mins}m`
+        showNotification(
+          '👶 Baby has been awake a while',
+          `Baby has been awake for ${timeStr}. Consider nap time?`,
+          'awake-alert'
+        )
+        lastAwakeAlert.value = now
+      }
+    }
+
+    // Check sleep alert
+    if (currentActivityType.value === 'sleeping' && elapsedMinutes >= notificationSettings.value.sleepAlertMinutes) {
+      if (!lastSleepAlert.value || (now.getTime() - lastSleepAlert.value.getTime()) > 30 * 60000) {
+        const hours = Math.floor(elapsedMinutes / 60)
+        const mins = Math.floor(elapsedMinutes % 60)
+        const timeStr = hours > 0 ? `${hours}h ${mins}m` : `${mins}m`
+        showNotification(
+          '😴 Baby has been sleeping a while',
+          `Baby has been asleep for ${timeStr}. Check if they need feeding?`,
+          'sleep-alert'
+        )
+        lastSleepAlert.value = now
+      }
+    }
+  }
+
+  const startNotificationChecks = () => {
+    if (notificationCheckInterval) return
+
+    // Check every minute
+    notificationCheckInterval = window.setInterval(() => {
+      checkNotifications()
+    }, 60000) // Check every minute
+
+    // Initial check
+    checkNotifications()
+  }
+
+  const stopNotificationChecks = () => {
+    if (notificationCheckInterval) {
+      clearInterval(notificationCheckInterval)
+      notificationCheckInterval = null
+    }
+  }
+
+  const updateNotificationSettings = (settings: NotificationSettings) => {
+    notificationSettings.value = settings
+    saveNotificationSettings(settings)
+
+    if (settings.enabled) {
+      startNotificationChecks()
+    } else {
+      stopNotificationChecks()
+    }
+  }
+
   // Actions
   const toggleSleepAwake = () => {
     // End current entry
@@ -314,6 +395,10 @@ export const useBabyTrackerStore = defineStore('babyTracker', () => {
     currentActivity.value = currentActivity.value === 'sleeping' ? 'awake' : 'sleeping'
     isEating.value = false // Reset eating when switching states
     currentEntryStartTime.value = new Date()
+
+    // Reset alert trackers
+    lastAwakeAlert.value = null
+    lastSleepAlert.value = null
 
     saveToStorage()
   }
@@ -336,6 +421,10 @@ export const useBabyTrackerStore = defineStore('babyTracker', () => {
 
       isEating.value = false
       currentEntryStartTime.value = new Date()
+
+      // Reset alert trackers
+      lastAwakeAlert.value = null
+      lastSleepAlert.value = null
     } else {
       // If currently awake (not eating), end awake and start eating
       if (currentActivity.value === 'awake') {
@@ -350,6 +439,10 @@ export const useBabyTrackerStore = defineStore('babyTracker', () => {
 
       isEating.value = true
       currentEntryStartTime.value = new Date()
+
+      // Reset alert trackers
+      lastAwakeAlert.value = null
+      lastSleepAlert.value = null
     }
 
     saveToStorage()
@@ -362,6 +455,25 @@ export const useBabyTrackerStore = defineStore('babyTracker', () => {
       entry.endTime = endTime
       saveToStorage()
     }
+  }
+
+  const updateCurrentActivity = (startTime: Date, endTime: Date | null) => {
+    // Update the current activity start time
+    currentEntryStartTime.value = startTime
+
+    // If endTime is provided, end the current activity and start a new one
+    if (endTime) {
+      const newEntry: ActivityEntry = {
+        id: crypto.randomUUID(),
+        type: currentActivityType.value,
+        startTime: currentEntryStartTime.value,
+        endTime: endTime
+      }
+      entries.value.push(newEntry)
+      currentEntryStartTime.value = endTime
+    }
+
+    saveToStorage()
   }
 
   const deleteEntry = (id: string) => {
@@ -379,6 +491,11 @@ export const useBabyTrackerStore = defineStore('babyTracker', () => {
       currentEntryStartTime.value = new Date()
       saveToStorage()
     }
+
+    // Start notification checks if enabled
+    if (notificationSettings.value.enabled) {
+      startNotificationChecks()
+    }
   }
 
   return {
@@ -394,6 +511,9 @@ export const useBabyTrackerStore = defineStore('babyTracker', () => {
     lastSyncTime,
     syncError,
 
+    // Notification state
+    notificationSettings,
+
     // Computed
     currentActivityType,
     groupedByDay,
@@ -404,6 +524,7 @@ export const useBabyTrackerStore = defineStore('babyTracker', () => {
     toggleSleepAwake,
     toggleEating,
     updateEntry,
+    updateCurrentActivity,
     deleteEntry,
     initialize,
 
@@ -412,6 +533,11 @@ export const useBabyTrackerStore = defineStore('babyTracker', () => {
     joinRoom,
     leaveRoom,
     syncToCloud,
-    syncFromCloud
+    syncFromCloud,
+
+    // Notification actions
+    updateNotificationSettings,
+    startNotificationChecks,
+    stopNotificationChecks
   }
 })

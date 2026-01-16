@@ -143,16 +143,30 @@
 
           <!-- End Time -->
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">End Time</label>
+            <label class="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-2">
+              <span>End Time</span>
+              <label class="flex items-center gap-1 text-xs font-normal text-gray-600">
+                <input
+                  v-model="isOngoing"
+                  type="checkbox"
+                  class="rounded border-gray-300"
+                />
+                <span>Ongoing</span>
+              </label>
+            </label>
             <input
+              v-if="!isOngoing"
               v-model="editEndTime"
               type="datetime-local"
               class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
+            <div v-else class="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500">
+              Activity is ongoing
+            </div>
           </div>
 
           <!-- Duration Display -->
-          <div v-if="editingEntry.endTime" class="text-sm text-gray-600">
+          <div class="text-sm text-gray-600">
             Duration: {{ getDuration(editingEntry) }}
           </div>
 
@@ -192,6 +206,7 @@ const store = useBabyTrackerStore()
 const editingEntry = ref<ActivityEntry | null>(null)
 const editStartTime = ref('')
 const editEndTime = ref('')
+const isOngoing = ref(false)
 const currentTime = ref(new Date())
 const zoomLevel = ref(2) // 0 (most out) to 5 (most in)
 let intervalId: number | null = null
@@ -486,6 +501,7 @@ const getDaySummary = (day: DayData, type: ActivityType) => {
 const handleEditEntry = (entry: ActivityEntry) => {
   editingEntry.value = entry
   editStartTime.value = formatDateTimeLocal(entry.startTime)
+  isOngoing.value = !entry.endTime
   editEndTime.value = entry.endTime ? formatDateTimeLocal(entry.endTime) : ''
 }
 
@@ -503,15 +519,27 @@ const closeEditModal = () => {
   editingEntry.value = null
   editStartTime.value = ''
   editEndTime.value = ''
+  isOngoing.value = false
 }
 
 const handleSaveEdit = () => {
-  if (!editingEntry.value || !editStartTime.value || !editEndTime.value) return
+  if (!editingEntry.value || !editStartTime.value) return
+  if (!isOngoing.value && !editEndTime.value) return
 
   const startTime = new Date(editStartTime.value)
-  const endTime = new Date(editEndTime.value)
+  const endTime = isOngoing.value ? null : new Date(editEndTime.value)
 
-  store.updateEntry(editingEntry.value.id, startTime, endTime)
+  // Check if editing the current ongoing activity
+  if (editingEntry.value.id === 'current-activity') {
+    // Update current activity state in store
+    store.updateCurrentActivity(startTime, endTime)
+  } else {
+    // Update completed entry
+    if (endTime) {
+      store.updateEntry(editingEntry.value.id, startTime, endTime)
+    }
+  }
+
   closeEditModal()
 }
 
