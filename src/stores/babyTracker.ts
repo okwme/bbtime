@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { ActivityEntry, ActivityType, DayData } from '@/types'
-import { createRoom, fetchRoomData, updateRoomData, mergeData, parseRoomCode, type SyncData, type RoomInfo } from '@/services/jsonbin'
+import { createRoom, fetchRoomData, updateRoomData, mergeData, parseRoomCode, formatRoomCode, type SyncData, type RoomInfo } from '@/services/jsonbin'
 import {
   loadNotificationSettings,
   saveNotificationSettings,

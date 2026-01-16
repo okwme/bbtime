@@ -368,7 +368,7 @@ let isPinching = false
 // Drag editing state
 interface DragState {
   isDragging: boolean
-  mode: 'move' | 'resize-start' | 'resize-end' | null
+  mode: 'move' | 'resize-start' | 'resize-end' | 'create' | null
   entry: ActivityEntry | null
   originalStartTime: Date | null
   originalEndTime: Date | null
