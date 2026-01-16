@@ -1,76 +1,96 @@
 <template>
   <div class="h-full bg-gray-50 flex flex-col">
     <!-- Header -->
-    <div class="bg-white shadow-sm border-b border-gray-200 px-4 py-4 flex-shrink-0">
-      <h1 class="text-2xl font-bold text-gray-800 text-center">Timeline</h1>
+    <div class="bg-white shadow-sm border-b border-gray-200 px-4 py-3 flex-shrink-0">
+      <h1 class="text-xl font-bold text-gray-800 text-center">Activity Calendar</h1>
     </div>
 
-    <!-- Timeline Content -->
-    <div class="flex-1 overflow-y-auto px-4 py-6 space-y-6">
-      <div v-if="store.groupedByDay.length === 0" class="text-center py-12">
-        <p class="text-gray-500 text-lg">No activity recorded yet</p>
-      </div>
+    <!-- Calendar Content -->
+    <div v-if="store.groupedByDay.length === 0" class="flex-1 flex items-center justify-center">
+      <p class="text-gray-500 text-lg">No activity recorded yet</p>
+    </div>
 
-      <!-- Day Cards -->
-      <div
-        v-for="day in store.groupedByDay"
-        :key="day.date"
-        class="bg-white rounded-xl shadow-md overflow-hidden"
-      >
-        <!-- Day Header -->
-        <div class="bg-gray-100 px-4 py-3 border-b border-gray-200">
-          <h2 class="font-bold text-lg text-gray-800">{{ formatDate(day.date) }}</h2>
-          <p class="text-sm text-gray-600">{{ day.entries.length }} activities</p>
-        </div>
+    <div v-else class="flex-1 overflow-x-auto overflow-y-hidden">
+      <!-- Calendar Grid -->
+      <div class="h-full flex p-4 gap-3 min-w-min">
+        <!-- Day Column -->
+        <div
+          v-for="day in store.groupedByDay"
+          :key="day.date"
+          class="flex-shrink-0 w-24 flex flex-col"
+        >
+          <!-- Day Header -->
+          <div class="mb-2 text-center">
+            <div class="text-xs font-bold text-gray-800">{{ formatDayOfWeek(day.date) }}</div>
+            <div class="text-lg font-bold text-gray-900">{{ formatDayNumber(day.date) }}</div>
+            <div class="text-xs text-gray-600">{{ formatMonth(day.date) }}</div>
+          </div>
 
-        <!-- Timeline Visualization -->
-        <div class="p-4">
-          <!-- 24-hour grid visualization -->
-          <div class="relative h-16 bg-gray-100 rounded-lg overflow-hidden mb-4">
-            <div
-              v-for="entry in day.entries"
-              :key="entry.id"
-              class="absolute top-0 bottom-0 cursor-pointer transition-opacity hover:opacity-80"
-              :class="getActivityColorClass(entry.type)"
-              :style="getTimelineStyle(entry)"
-              @click="handleEditEntry(entry)"
-            ></div>
-
-            <!-- Hour markers -->
-            <div class="absolute inset-0 flex">
+          <!-- 24-Hour Column -->
+          <div class="flex-1 relative bg-white rounded-lg border-2 border-gray-200 overflow-hidden">
+            <!-- Hour grid lines (faint) -->
+            <div class="absolute inset-0 flex flex-col">
               <div
                 v-for="hour in 24"
                 :key="hour"
-                class="flex-1 border-r border-gray-300 last:border-r-0"
+                class="flex-1 border-b border-gray-100 last:border-b-0"
               ></div>
             </div>
-          </div>
 
-          <!-- Entry List -->
-          <div class="space-y-2">
+            <!-- Activity blocks -->
             <div
               v-for="entry in day.entries"
               :key="entry.id"
-              class="flex items-center justify-between p-3 rounded-lg border border-gray-200 hover:bg-gray-50 cursor-pointer transition-colors"
+              class="absolute left-0 right-0 cursor-pointer transition-opacity hover:opacity-80 flex items-center justify-center"
+              :class="getActivityColorClass(entry.type)"
+              :style="getColumnStyle(entry)"
               @click="handleEditEntry(entry)"
             >
-              <div class="flex items-center space-x-3">
-                <div
-                  class="w-4 h-4 rounded-full"
-                  :class="getActivityColorClass(entry.type)"
-                ></div>
-                <div>
-                  <div class="font-semibold text-gray-800">{{ getActivityLabel(entry.type) }}</div>
-                  <div class="text-sm text-gray-600">
-                    {{ formatTime(entry.startTime) }} - {{ formatTime(entry.endTime) }}
-                  </div>
-                </div>
+              <span class="text-white text-xs font-bold transform -rotate-0">
+                {{ getActivityEmoji(entry.type) }}
+              </span>
+            </div>
+
+            <!-- Time markers on the side -->
+            <div class="absolute inset-y-0 left-0 flex flex-col justify-between text-xs text-gray-400 pointer-events-none px-1">
+              <div>12a</div>
+              <div>6a</div>
+              <div>12p</div>
+              <div>6p</div>
+            </div>
+          </div>
+
+          <!-- Summary -->
+          <div class="mt-2 text-center">
+            <div class="flex justify-around text-xs">
+              <div class="flex flex-col items-center">
+                <span class="text-lg">😴</span>
+                <span class="text-gray-600">{{ getDaySummary(day, 'sleeping') }}</span>
               </div>
-              <div class="text-sm font-medium text-gray-700">
-                {{ getDuration(entry) }}
+              <div class="flex flex-col items-center">
+                <span class="text-lg">🍼</span>
+                <span class="text-gray-600">{{ getDaySummary(day, 'eating') }}</span>
               </div>
             </div>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Legend -->
+    <div class="flex-shrink-0 bg-white border-t border-gray-200 px-4 py-2">
+      <div class="flex justify-center gap-4 text-xs">
+        <div class="flex items-center gap-1">
+          <div class="w-3 h-3 rounded bg-indigo-500"></div>
+          <span class="text-gray-700">Sleeping</span>
+        </div>
+        <div class="flex items-center gap-1">
+          <div class="w-3 h-3 rounded bg-green-500"></div>
+          <span class="text-gray-700">Eating</span>
+        </div>
+        <div class="flex items-center gap-1">
+          <div class="w-3 h-3 rounded bg-amber-500"></div>
+          <span class="text-gray-700">Awake</span>
         </div>
       </div>
     </div>
@@ -87,7 +107,7 @@
         <div class="space-y-4">
           <!-- Activity Type -->
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Activity Type</label>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Activity</label>
             <div class="text-lg font-semibold text-gray-900">
               {{ getActivityLabel(editingEntry.type) }}
             </div>
@@ -113,27 +133,32 @@
             />
           </div>
 
+          <!-- Duration Display -->
+          <div v-if="editingEntry.endTime" class="text-sm text-gray-600">
+            Duration: {{ getDuration(editingEntry) }}
+          </div>
+
           <!-- Buttons -->
-          <div class="flex space-x-3 mt-6">
+          <div class="flex gap-2 mt-6">
             <button
               @click="handleSaveEdit"
-              class="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-4 rounded-xl transition-colors"
+              class="flex-1 bg-blue-500 text-white font-bold py-3 px-4 rounded-xl"
             >
               Save
             </button>
             <button
               @click="handleDeleteEntry"
-              class="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold py-3 px-4 rounded-xl transition-colors"
+              class="flex-1 bg-red-500 text-white font-bold py-3 px-4 rounded-xl"
             >
               Delete
             </button>
-            <button
-              @click="closeEditModal"
-              class="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-3 px-4 rounded-xl transition-colors"
-            >
-              Cancel
-            </button>
           </div>
+          <button
+            @click="closeEditModal"
+            class="w-full bg-gray-300 text-gray-800 font-bold py-3 px-4 rounded-xl"
+          >
+            Cancel
+          </button>
         </div>
       </div>
     </div>
@@ -143,44 +168,70 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useBabyTrackerStore } from '@/stores/babyTracker'
-import type { ActivityEntry, ActivityType } from '@/types'
+import type { ActivityEntry, ActivityType, DayData } from '@/types'
 
 const store = useBabyTrackerStore()
 const editingEntry = ref<ActivityEntry | null>(null)
 const editStartTime = ref('')
 const editEndTime = ref('')
 
-const formatDate = (dateStr: string) => {
+const formatDayOfWeek = (dateStr: string) => {
   const date = new Date(dateStr + 'T00:00:00')
-  const today = new Date()
-  const yesterday = new Date(today)
-  yesterday.setDate(yesterday.getDate() - 1)
+  return date.toLocaleDateString('en-US', { weekday: 'short' })
+}
 
-  const dateKey = date.toISOString().split('T')[0]
-  const todayKey = today.toISOString().split('T')[0]
-  const yesterdayKey = yesterday.toISOString().split('T')[0]
+const formatDayNumber = (dateStr: string) => {
+  const date = new Date(dateStr + 'T00:00:00')
+  return date.getDate()
+}
 
-  if (dateKey === todayKey) {
-    return 'Today'
-  } else if (dateKey === yesterdayKey) {
-    return 'Yesterday'
-  } else {
-    return date.toLocaleDateString('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    })
+const formatMonth = (dateStr: string) => {
+  const date = new Date(dateStr + 'T00:00:00')
+  return date.toLocaleDateString('en-US', { month: 'short' })
+}
+
+const getActivityEmoji = (type: ActivityType) => {
+  switch (type) {
+    case 'sleeping': return '😴'
+    case 'eating': return '🍼'
+    case 'awake': return '👶'
+    default: return ''
   }
 }
 
-const formatTime = (date: Date | null) => {
-  if (!date) return 'Now'
-  return new Date(date).toLocaleTimeString('en-US', {
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true
-  })
+const getActivityLabel = (type: ActivityType) => {
+  switch (type) {
+    case 'sleeping': return '😴 Sleeping'
+    case 'eating': return '🍼 Eating'
+    case 'awake': return '👶 Awake'
+    default: return type
+  }
+}
+
+const getActivityColorClass = (type: ActivityType) => {
+  switch (type) {
+    case 'sleeping': return 'bg-indigo-500'
+    case 'eating': return 'bg-green-500'
+    case 'awake': return 'bg-amber-500'
+    default: return 'bg-gray-400'
+  }
+}
+
+const getColumnStyle = (entry: ActivityEntry) => {
+  const dayStart = new Date(entry.startTime)
+  dayStart.setHours(0, 0, 0, 0)
+
+  const startMinutes = (new Date(entry.startTime).getTime() - dayStart.getTime()) / 60000
+  const endTime = entry.endTime ? new Date(entry.endTime) : new Date()
+  const endMinutes = (endTime.getTime() - dayStart.getTime()) / 60000
+
+  const topPercent = (startMinutes / 1440) * 100
+  const heightPercent = ((endMinutes - startMinutes) / 1440) * 100
+
+  return {
+    top: `${topPercent}%`,
+    height: `${Math.max(heightPercent, 2)}%` // Minimum 2% height for visibility
+  }
 }
 
 const getDuration = (entry: ActivityEntry) => {
@@ -198,46 +249,23 @@ const getDuration = (entry: ActivityEntry) => {
   }
 }
 
-const getActivityLabel = (type: ActivityType) => {
-  switch (type) {
-    case 'sleeping':
-      return '😴 Sleeping'
-    case 'eating':
-      return '🍼 Eating'
-    case 'awake':
-      return '👶 Awake'
-    default:
-      return type
-  }
-}
+const getDaySummary = (day: DayData, type: ActivityType) => {
+  const entries = day.entries.filter(e => e.type === type)
+  if (entries.length === 0) return '-'
 
-const getActivityColorClass = (type: ActivityType) => {
-  switch (type) {
-    case 'sleeping':
-      return 'bg-indigo-500'
-    case 'eating':
-      return 'bg-green-500'
-    case 'awake':
-      return 'bg-amber-500'
-    default:
-      return 'bg-gray-400'
-  }
-}
+  const totalMinutes = entries.reduce((sum, entry) => {
+    const endTime = entry.endTime ? new Date(entry.endTime) : new Date()
+    const duration = (endTime.getTime() - new Date(entry.startTime).getTime()) / 60000
+    return sum + duration
+  }, 0)
 
-const getTimelineStyle = (entry: ActivityEntry) => {
-  const dayStart = new Date(entry.startTime)
-  dayStart.setHours(0, 0, 0, 0)
+  const hours = Math.floor(totalMinutes / 60)
+  const mins = Math.floor(totalMinutes % 60)
 
-  const startMinutes = (new Date(entry.startTime).getTime() - dayStart.getTime()) / 60000
-  const endTime = entry.endTime ? new Date(entry.endTime) : new Date()
-  const endMinutes = (endTime.getTime() - dayStart.getTime()) / 60000
-
-  const startPercent = (startMinutes / 1440) * 100
-  const widthPercent = ((endMinutes - startMinutes) / 1440) * 100
-
-  return {
-    left: `${startPercent}%`,
-    width: `${widthPercent}%`
+  if (hours > 0) {
+    return `${hours}h`
+  } else {
+    return `${mins}m`
   }
 }
 
