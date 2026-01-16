@@ -58,7 +58,7 @@
           <button
             v-for="count in [1, 3, 5]"
             :key="count"
-            @click="dayViewCount = count"
+            @click="changeDayView(count)"
             class="px-3 py-1 rounded-lg border transition-colors"
             :class="dayViewCount === count ? 'bg-blue-500 text-white border-blue-500' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100'"
           >
@@ -490,6 +490,12 @@ const navigateNext = () => {
 }
 
 const navigateToday = () => {
+  dayOffset.value = 0
+}
+
+const changeDayView = (count: number) => {
+  dayViewCount.value = count
+  // Reset offset to 0 so today is always the leftmost column
   dayOffset.value = 0
 }
 

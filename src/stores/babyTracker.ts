@@ -285,19 +285,19 @@ export const useBabyTrackerStore = defineStore('babyTracker', () => {
       groups.set(dateKey, [])
     }
 
-    // Add all completed entries
+    // Add all completed entries (only within the requested date range)
     entries.value.forEach(entry => {
       const dateKey = entry.startTime.toISOString().split('T')[0] as string
-      if (!groups.has(dateKey)) {
-        groups.set(dateKey, [])
-      }
-      const group = groups.get(dateKey)
-      if (group) {
-        group.push(entry)
+      // Only add entries that fall within the requested date range
+      if (groups.has(dateKey)) {
+        const group = groups.get(dateKey)
+        if (group) {
+          group.push(entry)
+        }
       }
     })
 
-    // Add current ongoing activity
+    // Add current ongoing activity (only if within the requested date range)
     const currentEntry: ActivityEntry = {
       id: 'current-activity',
       type: currentActivityType.value,
@@ -305,12 +305,11 @@ export const useBabyTrackerStore = defineStore('babyTracker', () => {
       endTime: null // Ongoing
     }
     const currentDateKey = currentEntryStartTime.value.toISOString().split('T')[0] as string
-    if (!groups.has(currentDateKey)) {
-      groups.set(currentDateKey, [])
-    }
-    const currentGroup = groups.get(currentDateKey)
-    if (currentGroup) {
-      currentGroup.push(currentEntry)
+    if (groups.has(currentDateKey)) {
+      const currentGroup = groups.get(currentDateKey)
+      if (currentGroup) {
+        currentGroup.push(currentEntry)
+      }
     }
 
     return Array.from(groups.entries())
