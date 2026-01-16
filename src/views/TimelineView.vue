@@ -1,18 +1,42 @@
 <template>
   <div class="h-full bg-gray-50 flex flex-col">
+    <!-- Header -->
+    <div class="bg-white shadow-sm border-b border-gray-200 px-4 py-3 flex-shrink-0 flex items-center justify-between">
+      <h1 class="text-xl font-bold text-gray-800">Activity Calendar</h1>
+      <div class="flex items-center gap-2">
+        <button
+          @click="zoomOut"
+          :disabled="zoomLevel === 0"
+          class="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-300 bg-white disabled:opacity-30 disabled:cursor-not-allowed hover:bg-gray-100 transition-colors"
+          title="Zoom out"
+        >
+          <span class="text-lg font-bold text-gray-700">−</span>
+        </button>
+        <span class="text-xs text-gray-600 w-12 text-center">{{ zoomLabel }}</span>
+        <button
+          @click="zoomIn"
+          :disabled="zoomLevel === 5"
+          class="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-300 bg-white disabled:opacity-30 disabled:cursor-not-allowed hover:bg-gray-100 transition-colors"
+          title="Zoom in"
+        >
+          <span class="text-lg font-bold text-gray-700">+</span>
+        </button>
+      </div>
+    </div>
+
     <!-- Calendar Content -->
     <div v-if="store.groupedByDay.length === 0" class="flex-1 flex items-center justify-center">
       <p class="text-gray-500 text-lg">No activity recorded yet</p>
     </div>
 
-    <div v-else class="flex-1 overflow-x-auto overflow-y-hidden">
+    <div v-else class="flex-1 overflow-x-auto overflow-y-auto">
       <!-- Calendar Grid -->
-      <div class="h-full flex p-4 gap-3 min-w-min">
+      <div class="flex p-4 gap-4 min-w-min" :style="{ height: calendarHeight }">
         <!-- Day Column -->
         <div
           v-for="day in store.groupedByDay"
           :key="day.date"
-          class="flex-shrink-0 w-24 flex flex-col"
+          class="flex-shrink-0 w-32 flex flex-col"
         >
           <!-- Day Header -->
           <div class="mb-3 text-center bg-white rounded-lg border border-gray-200 py-2 px-2">
@@ -36,42 +60,28 @@
             <div
               v-for="entry in visibleEntries(day.entries)"
               :key="entry.id"
-              class="absolute cursor-pointer transition-opacity hover:opacity-90 flex items-center justify-center border-l-4"
+              class="absolute cursor-pointer transition-opacity hover:opacity-90 flex flex-col items-center justify-center border-l-4 overflow-hidden"
               :class="getActivityColorClass(entry.type)"
               :style="getColumnStyle(entry)"
               @click="handleEditEntry(entry)"
             >
-              <span class="text-xs font-bold transform -rotate-0" :class="getTextColorClass(entry.type)">
+              <span class="text-xs font-bold" :class="getTextColorClass(entry.type)">
                 {{ getActivityEmoji(entry.type) }}
+              </span>
+              <span
+                v-if="shouldShowDuration(entry)"
+                class="text-xs font-semibold mt-1"
+                :class="getTextColorClass(entry.type)"
+              >
+                {{ getShortDuration(entry) }}
               </span>
             </div>
 
             <!-- Time markers on the side -->
-            <div class="absolute inset-y-0 left-0 flex flex-col text-xs font-semibold pointer-events-none px-1" style="justify-content: space-between;">
-              <div class="text-gray-900">12a</div>
-              <div class="text-gray-700">1a</div>
-              <div class="text-gray-700">2a</div>
-              <div class="text-gray-700">3a</div>
-              <div class="text-gray-700">4a</div>
-              <div class="text-gray-700">5a</div>
-              <div class="text-gray-900">6a</div>
-              <div class="text-gray-700">7a</div>
-              <div class="text-gray-700">8a</div>
-              <div class="text-gray-700">9a</div>
-              <div class="text-gray-700">10a</div>
-              <div class="text-gray-700">11a</div>
-              <div class="text-gray-900">12p</div>
-              <div class="text-gray-700">1p</div>
-              <div class="text-gray-700">2p</div>
-              <div class="text-gray-700">3p</div>
-              <div class="text-gray-700">4p</div>
-              <div class="text-gray-700">5p</div>
-              <div class="text-gray-900">6p</div>
-              <div class="text-gray-700">7p</div>
-              <div class="text-gray-700">8p</div>
-              <div class="text-gray-700">9p</div>
-              <div class="text-gray-700">10p</div>
-              <div class="text-gray-700">11p</div>
+            <div class="absolute inset-y-0 left-0 flex flex-col pointer-events-none px-1" :class="timeMarkerClass" style="justify-content: space-between;">
+              <div v-for="marker in timeMarkers" :key="marker.label" :class="marker.emphasized ? 'text-gray-900' : 'text-gray-700'">
+                {{ marker.label }}
+              </div>
             </div>
           </div>
         </div>
@@ -167,7 +177,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useBabyTrackerStore } from '@/stores/babyTracker'
 import type { ActivityEntry, ActivityType, DayData } from '@/types'
 
@@ -176,7 +186,67 @@ const editingEntry = ref<ActivityEntry | null>(null)
 const editStartTime = ref('')
 const editEndTime = ref('')
 const currentTime = ref(new Date())
+const zoomLevel = ref(2) // 0 (most out) to 5 (most in)
 let intervalId: number | null = null
+
+// Zoom configuration
+const zoomConfig = [
+  { height: 300, interval: 6, label: 'Day' },      // Level 0: Every 6 hours (12a, 6a, 12p, 6p)
+  { height: 400, interval: 2, label: '2h' },       // Level 1: Every 2 hours
+  { height: 600, interval: 1, label: '1h' },       // Level 2: Every hour
+  { height: 1200, interval: 0.5, label: '30m' },   // Level 3: Every 30 minutes
+  { height: 2400, interval: 0.25, label: '15m' },  // Level 4: Every 15 minutes
+  { height: 4800, interval: 1/12, label: '5m' }    // Level 5: Every 5 minutes
+]
+
+const calendarHeight = computed(() => `${zoomConfig[zoomLevel.value].height}px`)
+const zoomLabel = computed(() => zoomConfig[zoomLevel.value].label)
+
+const timeMarkerClass = computed(() => {
+  if (zoomLevel.value <= 1) return 'text-xs font-semibold'
+  if (zoomLevel.value <= 3) return 'text-xs font-semibold'
+  return 'text-[10px] font-medium'
+})
+
+const timeMarkers = computed(() => {
+  const interval = zoomConfig[zoomLevel.value].interval
+  const markers: { label: string; emphasized: boolean }[] = []
+
+  if (interval >= 1) {
+    // Hourly or less frequent
+    for (let hour = 0; hour < 24; hour += interval) {
+      const h = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour
+      const period = hour < 12 ? 'a' : 'p'
+      const emphasized = hour % 6 === 0 // Emphasize 12a, 6a, 12p, 6p
+      markers.push({ label: `${h}${period}`, emphasized })
+    }
+  } else {
+    // Sub-hourly (30min, 15min, 5min)
+    const minuteInterval = interval * 60
+    for (let totalMinutes = 0; totalMinutes < 24 * 60; totalMinutes += minuteInterval) {
+      const hour = Math.floor(totalMinutes / 60)
+      const minute = totalMinutes % 60
+      const h = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour
+      const period = hour < 12 ? 'a' : 'p'
+
+      if (minute === 0) {
+        markers.push({ label: `${h}${period}`, emphasized: hour % 6 === 0 })
+      } else {
+        markers.push({ label: `:${String(minute).padStart(2, '0')}`, emphasized: false })
+      }
+    }
+  }
+
+  return markers
+})
+
+const zoomIn = () => {
+  if (zoomLevel.value < 5) zoomLevel.value++
+}
+
+const zoomOut = () => {
+  if (zoomLevel.value > 0) zoomLevel.value--
+}
 
 // Update current time every second to trigger reactivity for ongoing activities
 onMounted(() => {
@@ -244,6 +314,9 @@ const getTextColorClass = (type: ActivityType) => {
 }
 
 const visibleEntries = (entries: ActivityEntry[]) => {
+  // Minimum duration threshold based on zoom level
+  const minDurations = [30, 15, 5, 3, 2, 1] // minutes for levels 0-5
+
   return entries.filter(entry => {
     // Always show ongoing activities (no endTime)
     if (!entry.endTime) return true
@@ -252,8 +325,8 @@ const visibleEntries = (entries: ActivityEntry[]) => {
     const durationMs = new Date(entry.endTime).getTime() - new Date(entry.startTime).getTime()
     const durationMinutes = durationMs / 60000
 
-    // Only show if >= 5 minutes
-    return durationMinutes >= 5
+    // Show based on zoom level threshold
+    return durationMinutes >= minDurations[zoomLevel.value]
   })
 }
 
@@ -299,6 +372,35 @@ const getDuration = (entry: ActivityEntry) => {
   } else {
     return `${mins}m`
   }
+}
+
+const getShortDuration = (entry: ActivityEntry) => {
+  const endTime = entry.endTime ? new Date(entry.endTime) : currentTime.value
+  const diff = endTime.getTime() - new Date(entry.startTime).getTime()
+  const minutes = Math.floor(diff / 60000)
+  const hours = Math.floor(minutes / 60)
+  const mins = minutes % 60
+
+  if (hours > 0) {
+    return `${hours}h${mins > 0 ? ` ${mins}m` : ''}`
+  } else {
+    return `${mins}m`
+  }
+}
+
+const shouldShowDuration = (entry: ActivityEntry) => {
+  // Only show duration if zoomed in enough AND block is tall enough
+  if (zoomLevel.value < 2) return false
+
+  const endTime = entry.endTime ? new Date(entry.endTime) : currentTime.value
+  const durationMinutes = (endTime.getTime() - new Date(entry.startTime).getTime()) / 60000
+
+  // Calculate pixel height of this block
+  const heightPercent = (durationMinutes / 1440) * 100
+  const pixelHeight = (heightPercent / 100) * zoomConfig[zoomLevel.value].height
+
+  // Show duration if block is at least 40px tall
+  return pixelHeight >= 40
 }
 
 const getDaySummary = (day: DayData, type: ActivityType) => {
