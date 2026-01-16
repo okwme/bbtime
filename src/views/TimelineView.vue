@@ -29,7 +29,14 @@
       <p class="text-gray-500 text-lg">No activity recorded yet</p>
     </div>
 
-    <div v-else class="flex-1 overflow-x-auto overflow-y-auto">
+    <div
+      v-else
+      class="flex-1 overflow-x-auto overflow-y-auto touch-pan-x touch-pan-y"
+      style="touch-action: pan-x pan-y;"
+      @touchstart="handleTouchStart"
+      @touchmove="handleTouchMove"
+      @touchend="handleTouchEnd"
+    >
       <!-- Calendar Grid -->
       <div class="flex p-4 gap-4 min-w-min" :style="{ height: calendarHeight }">
         <!-- Day Column -->
@@ -189,6 +196,11 @@ const currentTime = ref(new Date())
 const zoomLevel = ref(2) // 0 (most out) to 5 (most in)
 let intervalId: number | null = null
 
+// Touch/pinch zoom state
+let initialPinchDistance = 0
+let initialZoomLevel = 2
+let isPinching = false
+
 // Zoom configuration
 const zoomConfig = [
   { height: 300, interval: 6, label: 'Day' },      // Level 0: Every 6 hours (12a, 6a, 12p, 6p)
@@ -214,16 +226,23 @@ const timeMarkers = computed(() => {
 
   if (interval >= 1) {
     // Hourly or less frequent
-    for (let hour = 0; hour < 24; hour += interval) {
+    const totalMarkers = Math.floor(24 / interval) + 1
+    for (let i = 0; i < totalMarkers && i * interval < 24; i++) {
+      const hour = i * interval
       const h = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour
       const period = hour < 12 ? 'a' : 'p'
-      const emphasized = hour % 6 === 0 // Emphasize 12a, 6a, 12p, 6p
+      const emphasized = hour % 6 === 0
       markers.push({ label: `${h}${period}`, emphasized })
     }
   } else {
     // Sub-hourly (30min, 15min, 5min)
-    const minuteInterval = interval * 60
-    for (let totalMinutes = 0; totalMinutes < 24 * 60; totalMinutes += minuteInterval) {
+    const minuteInterval = Math.round(interval * 60)
+    const totalMarkers = Math.floor((24 * 60) / minuteInterval) + 1
+
+    for (let i = 0; i < totalMarkers; i++) {
+      const totalMinutes = i * minuteInterval
+      if (totalMinutes >= 24 * 60) break
+
       const hour = Math.floor(totalMinutes / 60)
       const minute = totalMinutes % 60
       const h = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour
@@ -246,6 +265,46 @@ const zoomIn = () => {
 
 const zoomOut = () => {
   if (zoomLevel.value > 0) zoomLevel.value--
+}
+
+// Touch/pinch zoom handlers
+const getTouchDistance = (touch1: Touch, touch2: Touch): number => {
+  const dx = touch1.clientX - touch2.clientX
+  const dy = touch1.clientY - touch2.clientY
+  return Math.sqrt(dx * dx + dy * dy)
+}
+
+const handleTouchStart = (e: TouchEvent) => {
+  if (e.touches.length === 2) {
+    isPinching = true
+    initialPinchDistance = getTouchDistance(e.touches[0], e.touches[1])
+    initialZoomLevel = zoomLevel.value
+    e.preventDefault()
+  }
+}
+
+const handleTouchMove = (e: TouchEvent) => {
+  if (isPinching && e.touches.length === 2) {
+    const currentDistance = getTouchDistance(e.touches[0], e.touches[1])
+    const distanceChange = currentDistance - initialPinchDistance
+
+    // Scale factor: ~100px change = 1 zoom level
+    const zoomChange = Math.round(distanceChange / 100)
+    const newZoomLevel = Math.max(0, Math.min(5, initialZoomLevel + zoomChange))
+
+    if (newZoomLevel !== zoomLevel.value) {
+      zoomLevel.value = newZoomLevel
+    }
+
+    e.preventDefault()
+  }
+}
+
+const handleTouchEnd = (e: TouchEvent) => {
+  if (e.touches.length < 2) {
+    isPinching = false
+    initialPinchDistance = 0
+  }
 }
 
 // Update current time every second to trigger reactivity for ongoing activities
