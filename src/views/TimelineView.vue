@@ -39,7 +39,7 @@
 
             <!-- Activity blocks -->
             <div
-              v-for="entry in day.entries"
+              v-for="entry in visibleEntries(day.entries)"
               :key="entry.id"
               class="absolute left-0 right-0 cursor-pointer transition-opacity hover:opacity-80 flex items-center justify-center"
               :class="getActivityColorClass(entry.type)"
@@ -52,11 +52,19 @@
             </div>
 
             <!-- Time markers on the side -->
-            <div class="absolute inset-y-0 left-0 flex flex-col justify-between text-xs text-gray-400 pointer-events-none px-1">
+            <div class="absolute inset-y-0 left-0 flex flex-col text-xs text-gray-400 pointer-events-none px-1" style="justify-content: space-between;">
               <div>12a</div>
+              <div>2a</div>
+              <div>4a</div>
               <div>6a</div>
+              <div>8a</div>
+              <div>10a</div>
               <div>12p</div>
+              <div>2p</div>
+              <div>4p</div>
               <div>6p</div>
+              <div>8p</div>
+              <div>10p</div>
             </div>
           </div>
 
@@ -215,6 +223,20 @@ const getActivityColorClass = (type: ActivityType) => {
     case 'awake': return 'bg-amber-500'
     default: return 'bg-gray-400'
   }
+}
+
+const visibleEntries = (entries: ActivityEntry[]) => {
+  return entries.filter(entry => {
+    // Always show ongoing activities (no endTime)
+    if (!entry.endTime) return true
+
+    // Calculate duration in minutes
+    const durationMs = new Date(entry.endTime).getTime() - new Date(entry.startTime).getTime()
+    const durationMinutes = durationMs / 60000
+
+    // Only show if >= 5 minutes
+    return durationMinutes >= 5
+  })
 }
 
 const getColumnStyle = (entry: ActivityEntry) => {
