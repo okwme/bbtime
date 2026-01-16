@@ -747,8 +747,8 @@ const handleMouseUp = () => {
 }
 
 // Update current time every second to trigger reactivity for ongoing activities
-onMounted(() => {
-  store.initialize()
+onMounted(async () => {
+  await store.initialize()
   intervalId = window.setInterval(() => {
     currentTime.value = new Date()
   }, 1000)

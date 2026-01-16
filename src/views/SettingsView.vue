@@ -92,33 +92,6 @@
 
       <div class="border-t-8 border-gray-100 my-4"></div>
       <h2 class="text-lg font-bold text-gray-800 mb-4">☁️ Cloud Sync</h2>
-      <!-- API Key Configuration -->
-      <div v-if="!hasApiKey" class="bg-yellow-50 rounded-xl border-2 border-yellow-200 p-4 mb-4">
-        <h3 class="font-bold text-yellow-900 mb-2">⚠️ API Key Required</h3>
-        <p class="text-sm text-yellow-800 mb-3">
-          Cloud sync requires a free JSONBin.io API key.
-        </p>
-        <input
-          v-model="apiKeyInput"
-          type="password"
-          placeholder="Paste your API key here"
-          class="w-full px-4 py-2 border border-yellow-300 rounded-lg mb-2 text-sm"
-        />
-        <button
-          @click="saveApiKey"
-          :disabled="!apiKeyInput.trim()"
-          class="w-full bg-yellow-600 text-white py-2 px-4 rounded-lg text-sm font-medium disabled:opacity-50"
-        >
-          Save API Key
-        </button>
-        <a
-          href="https://jsonbin.io/"
-          target="_blank"
-          class="block text-center text-sm text-yellow-700 underline mt-2"
-        >
-          Get free API key →
-        </a>
-      </div>
 
       <!-- Connected State -->
       <div v-if="store.isConnectedToRoom" class="space-y-4">
@@ -253,8 +226,6 @@ const store = useBabyTrackerStore()
 const joinCode = ref('')
 const joinError = ref('')
 const copied = ref(false)
-const apiKeyInput = ref('')
-const hasApiKey = ref(!!localStorage.getItem('jsonbin-api-key'))
 
 // Notification state
 const notifSettings = ref<NotificationSettings>({ ...store.notificationSettings })
@@ -307,14 +278,6 @@ const formatJoinCode = () => {
   }
 
   joinCode.value = value
-}
-
-const saveApiKey = () => {
-  if (!apiKeyInput.value.trim()) return
-
-  localStorage.setItem('jsonbin-api-key', apiKeyInput.value.trim())
-  hasApiKey.value = true
-  apiKeyInput.value = ''
 }
 
 const handleCreateRoom = async () => {

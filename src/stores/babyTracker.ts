@@ -528,7 +528,7 @@ export const useBabyTrackerStore = defineStore('babyTracker', () => {
     saveToStorage()
   }
 
-  const initialize = () => {
+  const initialize = async () => {
     loadFromStorage()
 
     // If no data, start with awake state
@@ -537,6 +537,17 @@ export const useBabyTrackerStore = defineStore('babyTracker', () => {
       isEating.value = false
       currentEntryStartTime.value = new Date()
       saveToStorage()
+    }
+
+    // Auto-join default room if not already connected
+    const DEFAULT_ROOM_CODE = '6F4-76B'
+    if (!roomInfo.value) {
+      try {
+        await joinRoom(DEFAULT_ROOM_CODE)
+      } catch (error) {
+        console.warn('Could not auto-join default room:', error)
+        // Continue without sync - this is non-blocking
+      }
     }
 
     // Start notification checks if enabled

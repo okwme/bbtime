@@ -61,8 +61,8 @@ const currentTime = ref(new Date())
 let intervalId: number | null = null
 
 // Update current time every second
-onMounted(() => {
-  store.initialize()
+onMounted(async () => {
+  await store.initialize()
   intervalId = window.setInterval(() => {
     currentTime.value = new Date()
   }, 1000)
