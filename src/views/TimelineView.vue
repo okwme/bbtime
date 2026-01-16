@@ -46,10 +46,10 @@
           class="flex-shrink-0 w-32 flex flex-col"
         >
           <!-- Day Header -->
-          <div class="mb-3 text-center bg-white rounded-lg border border-gray-200 py-2 px-2">
-            <div class="text-sm font-bold text-gray-900">{{ formatDayOfWeek(day.date) }}</div>
-            <div class="text-2xl font-bold text-gray-900">{{ formatDayNumber(day.date) }}</div>
-            <div class="text-sm text-gray-700">{{ formatMonth(day.date) }}</div>
+          <div class="mb-3 text-center rounded-lg py-2 px-2" :class="isToday(day.date) ? 'bg-blue-100 border-2 border-blue-500' : 'bg-white border border-gray-200'">
+            <div class="text-sm font-bold" :class="isToday(day.date) ? 'text-blue-900' : 'text-gray-900'">{{ formatDayOfWeek(day.date) }}</div>
+            <div class="text-2xl font-bold" :class="isToday(day.date) ? 'text-blue-900' : 'text-gray-900'">{{ formatDayNumber(day.date) }}</div>
+            <div class="text-sm" :class="isToday(day.date) ? 'text-blue-700' : 'text-gray-700'">{{ formatMonth(day.date) }}</div>
           </div>
 
           <!-- 24-Hour Column -->
@@ -357,6 +357,13 @@ onUnmounted(() => {
     clearInterval(intervalId)
   }
 })
+
+const isToday = (dateStr: string) => {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const todayStr = today.toISOString().split('T')[0]
+  return dateStr === todayStr
+}
 
 const formatDayOfWeek = (dateStr: string) => {
   const date = new Date(dateStr + 'T00:00:00')

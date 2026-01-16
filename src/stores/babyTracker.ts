@@ -267,6 +267,17 @@ export const useBabyTrackerStore = defineStore('babyTracker', () => {
   const groupedByDay = computed<DayData[]>(() => {
     const groups = new Map<string, ActivityEntry[]>()
 
+    // Generate date range: 7 days before to 7 days after today
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+
+    for (let i = -7; i <= 7; i++) {
+      const date = new Date(today)
+      date.setDate(today.getDate() + i)
+      const dateKey = date.toISOString().split('T')[0] as string
+      groups.set(dateKey, [])
+    }
+
     // Add all completed entries
     entries.value.forEach(entry => {
       const dateKey = entry.startTime.toISOString().split('T')[0] as string
