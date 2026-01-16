@@ -1,10 +1,5 @@
 <template>
   <div class="h-full bg-gray-50 flex flex-col">
-    <!-- Header -->
-    <div class="bg-white shadow-sm border-b border-gray-200 px-4 py-3 flex-shrink-0">
-      <h1 class="text-xl font-bold text-gray-800 text-center">Activity Calendar</h1>
-    </div>
-
     <!-- Calendar Content -->
     <div v-if="store.groupedByDay.length === 0" class="flex-1 flex items-center justify-center">
       <p class="text-gray-500 text-lg">No activity recorded yet</p>
@@ -20,10 +15,10 @@
           class="flex-shrink-0 w-24 flex flex-col"
         >
           <!-- Day Header -->
-          <div class="mb-2 text-center">
-            <div class="text-xs font-bold text-gray-800">{{ formatDayOfWeek(day.date) }}</div>
-            <div class="text-lg font-bold text-gray-900">{{ formatDayNumber(day.date) }}</div>
-            <div class="text-xs text-gray-600">{{ formatMonth(day.date) }}</div>
+          <div class="mb-3 text-center bg-white rounded-lg border border-gray-200 py-2 px-2">
+            <div class="text-sm font-bold text-gray-900">{{ formatDayOfWeek(day.date) }}</div>
+            <div class="text-2xl font-bold text-gray-900">{{ formatDayNumber(day.date) }}</div>
+            <div class="text-sm text-gray-700">{{ formatMonth(day.date) }}</div>
           </div>
 
           <!-- 24-Hour Column -->
@@ -41,44 +36,42 @@
             <div
               v-for="entry in visibleEntries(day.entries)"
               :key="entry.id"
-              class="absolute left-0 right-0 cursor-pointer transition-opacity hover:opacity-80 flex items-center justify-center"
+              class="absolute cursor-pointer transition-opacity hover:opacity-90 flex items-center justify-center border-l-4"
               :class="getActivityColorClass(entry.type)"
               :style="getColumnStyle(entry)"
               @click="handleEditEntry(entry)"
             >
-              <span class="text-white text-xs font-bold transform -rotate-0">
+              <span class="text-xs font-bold transform -rotate-0" :class="getTextColorClass(entry.type)">
                 {{ getActivityEmoji(entry.type) }}
               </span>
             </div>
 
             <!-- Time markers on the side -->
-            <div class="absolute inset-y-0 left-0 flex flex-col text-xs text-gray-400 pointer-events-none px-1" style="justify-content: space-between;">
-              <div>12a</div>
-              <div>2a</div>
-              <div>4a</div>
-              <div>6a</div>
-              <div>8a</div>
-              <div>10a</div>
-              <div>12p</div>
-              <div>2p</div>
-              <div>4p</div>
-              <div>6p</div>
-              <div>8p</div>
-              <div>10p</div>
-            </div>
-          </div>
-
-          <!-- Summary -->
-          <div class="mt-2 text-center">
-            <div class="flex justify-around text-xs">
-              <div class="flex flex-col items-center">
-                <span class="text-lg">😴</span>
-                <span class="text-gray-600">{{ getDaySummary(day, 'sleeping') }}</span>
-              </div>
-              <div class="flex flex-col items-center">
-                <span class="text-lg">🍼</span>
-                <span class="text-gray-600">{{ getDaySummary(day, 'eating') }}</span>
-              </div>
+            <div class="absolute inset-y-0 left-0 flex flex-col text-xs font-semibold pointer-events-none px-1" style="justify-content: space-between;">
+              <div class="text-gray-900">12a</div>
+              <div class="text-gray-700">1a</div>
+              <div class="text-gray-700">2a</div>
+              <div class="text-gray-700">3a</div>
+              <div class="text-gray-700">4a</div>
+              <div class="text-gray-700">5a</div>
+              <div class="text-gray-900">6a</div>
+              <div class="text-gray-700">7a</div>
+              <div class="text-gray-700">8a</div>
+              <div class="text-gray-700">9a</div>
+              <div class="text-gray-700">10a</div>
+              <div class="text-gray-700">11a</div>
+              <div class="text-gray-900">12p</div>
+              <div class="text-gray-700">1p</div>
+              <div class="text-gray-700">2p</div>
+              <div class="text-gray-700">3p</div>
+              <div class="text-gray-700">4p</div>
+              <div class="text-gray-700">5p</div>
+              <div class="text-gray-900">6p</div>
+              <div class="text-gray-700">7p</div>
+              <div class="text-gray-700">8p</div>
+              <div class="text-gray-700">9p</div>
+              <div class="text-gray-700">10p</div>
+              <div class="text-gray-700">11p</div>
             </div>
           </div>
         </div>
@@ -89,15 +82,15 @@
     <div class="flex-shrink-0 bg-white border-t border-gray-200 px-4 py-2">
       <div class="flex justify-center gap-4 text-xs">
         <div class="flex items-center gap-1">
-          <div class="w-3 h-3 rounded bg-indigo-500"></div>
+          <div class="w-3 h-3 rounded bg-indigo-100 border-2 border-indigo-600"></div>
           <span class="text-gray-700">Sleeping</span>
         </div>
         <div class="flex items-center gap-1">
-          <div class="w-3 h-3 rounded bg-green-500"></div>
+          <div class="w-3 h-3 rounded bg-green-100 border-2 border-green-600"></div>
           <span class="text-gray-700">Eating</span>
         </div>
         <div class="flex items-center gap-1">
-          <div class="w-3 h-3 rounded bg-amber-500"></div>
+          <div class="w-3 h-3 rounded bg-amber-100 border-2 border-amber-600"></div>
           <span class="text-gray-700">Awake</span>
         </div>
       </div>
@@ -234,10 +227,19 @@ const getActivityLabel = (type: ActivityType) => {
 
 const getActivityColorClass = (type: ActivityType) => {
   switch (type) {
-    case 'sleeping': return 'bg-indigo-500'
-    case 'eating': return 'bg-green-500'
-    case 'awake': return 'bg-amber-500'
-    default: return 'bg-gray-400'
+    case 'sleeping': return 'bg-indigo-100 border-indigo-600'
+    case 'eating': return 'bg-green-100 border-green-600'
+    case 'awake': return 'bg-amber-100 border-amber-600'
+    default: return 'bg-gray-100 border-gray-400'
+  }
+}
+
+const getTextColorClass = (type: ActivityType) => {
+  switch (type) {
+    case 'sleeping': return 'text-indigo-900'
+    case 'eating': return 'text-green-900'
+    case 'awake': return 'text-amber-900'
+    default: return 'text-gray-900'
   }
 }
 
@@ -269,7 +271,9 @@ const getColumnStyle = (entry: ActivityEntry) => {
 
   return {
     top: `${topPercent}%`,
-    height: `${Math.max(heightPercent, 2)}%` // Minimum 2% height for visibility
+    height: `${Math.max(heightPercent, 2)}%`, // Minimum 2% height for visibility
+    left: '20px', // Leave space for time markers
+    right: '0'
   }
 }
 
