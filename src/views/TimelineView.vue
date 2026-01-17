@@ -3,7 +3,13 @@
     <!-- Header -->
     <div class="bg-white shadow-sm border-b border-gray-200 px-4 py-3 flex-shrink-0">
       <div class="flex items-center justify-between mb-2">
-        <h1 class="text-xl font-bold text-gray-800">Activity Calendar</h1>
+        <div class="flex items-center gap-2">
+          <h1 class="text-xl font-bold text-gray-800">Activity Calendar</h1>
+          <div v-if="store.isReadOnly" class="inline-flex items-center text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded-full">
+            <span class="w-2 h-2 bg-yellow-500 rounded-full mr-1"></span>
+            Read Only
+          </div>
+        </div>
         <div class="flex items-center gap-2">
           <button
             @click="zoomOut"
@@ -90,8 +96,8 @@
           :key="day.date"
           class="flex-1 max-w-xs flex flex-col"
         >
-          <!-- Day Header -->
-          <div class="mb-3 text-center rounded-lg py-2 px-2" :class="isToday(day.date) ? 'bg-blue-100 border-2 border-blue-500' : 'bg-white border border-gray-200'">
+          <!-- Day Header - Sticky to stay visible while scrolling -->
+          <div class="sticky top-0 z-10 mb-3 text-center rounded-lg py-2 px-2 shadow-sm" :class="isToday(day.date) ? 'bg-blue-100 border-2 border-blue-500' : 'bg-white border border-gray-200'">
             <div class="text-sm font-bold" :class="isToday(day.date) ? 'text-blue-900' : 'text-gray-900'">{{ formatDayOfWeek(day.date) }}</div>
             <div class="text-2xl font-bold" :class="isToday(day.date) ? 'text-blue-900' : 'text-gray-900'">{{ formatDayNumber(day.date) }}</div>
             <div class="text-sm" :class="isToday(day.date) ? 'text-blue-700' : 'text-gray-700'">{{ formatMonth(day.date) }}</div>
@@ -167,8 +173,10 @@
     <!-- Floating + Button -->
     <button
       @click="showCreateModal = true"
-      class="fixed bottom-20 right-6 w-14 h-14 bg-blue-500 hover:bg-blue-600 text-white rounded-full shadow-lg flex items-center justify-center text-3xl font-light z-40 transition-transform hover:scale-110"
-      title="Add new activity"
+      :disabled="store.isReadOnly"
+      class="fixed bottom-20 right-6 w-14 h-14 rounded-full shadow-lg flex items-center justify-center text-3xl font-light z-40 transition-transform"
+      :class="store.isReadOnly ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-blue-500 hover:bg-blue-600 text-white hover:scale-110'"
+      :title="store.isReadOnly ? 'Read-only mode: Cannot add activities' : 'Add new activity'"
     >
       +
     </button>
@@ -177,15 +185,15 @@
     <div class="flex-shrink-0 bg-white border-t border-gray-200 px-4 py-2">
       <div class="flex justify-center gap-4 text-xs">
         <div class="flex items-center gap-1">
-          <div class="w-3 h-3 rounded bg-indigo-100 border-2 border-indigo-600"></div>
+          <div class="w-3 h-3 rounded bg-blue-100 border-2 border-blue-600"></div>
           <span class="text-gray-700">Sleeping</span>
         </div>
         <div class="flex items-center gap-1">
-          <div class="w-3 h-3 rounded bg-green-100 border-2 border-green-600"></div>
+          <div class="w-3 h-3 rounded bg-pink-100 border-2 border-pink-600"></div>
           <span class="text-gray-700">Eating</span>
         </div>
         <div class="flex items-center gap-1">
-          <div class="w-3 h-3 rounded bg-amber-100 border-2 border-amber-600"></div>
+          <div class="w-3 h-3 rounded bg-yellow-100 border-2 border-yellow-600"></div>
           <span class="text-gray-700">Awake</span>
         </div>
       </div>
@@ -482,11 +490,11 @@ const zoomOut = () => {
 
 // Navigation functions
 const navigatePrevious = () => {
-  dayOffset.value -= dayViewCount.value
+  dayOffset.value -= 1
 }
 
 const navigateNext = () => {
-  dayOffset.value += dayViewCount.value
+  dayOffset.value += 1
 }
 
 const navigateToday = () => {
@@ -832,18 +840,18 @@ const getActivityLabel = (type: ActivityType) => {
 
 const getActivityColorClass = (type: ActivityType) => {
   switch (type) {
-    case 'sleeping': return 'bg-indigo-100 border-indigo-600'
-    case 'eating': return 'bg-green-100 border-green-600'
-    case 'awake': return 'bg-amber-100 border-amber-600'
+    case 'sleeping': return 'bg-blue-100 border-blue-600'
+    case 'eating': return 'bg-pink-100 border-pink-600'
+    case 'awake': return 'bg-yellow-100 border-yellow-600'
     default: return 'bg-gray-100 border-gray-400'
   }
 }
 
 const getTextColorClass = (type: ActivityType) => {
   switch (type) {
-    case 'sleeping': return 'text-indigo-900'
-    case 'eating': return 'text-green-900'
-    case 'awake': return 'text-amber-900'
+    case 'sleeping': return 'text-blue-900'
+    case 'eating': return 'text-pink-900'
+    case 'awake': return 'text-yellow-900'
     default: return 'text-gray-900'
   }
 }
@@ -1042,7 +1050,14 @@ const handleCreateEntry = () => {
   }
 
   // Check for overlaps before creating
-  const dateKey = startTime.toISOString().split('T')[0] as string
+  // Format date in local timezone to avoid UTC conversion issues
+  const formatDateLocal = (date: Date): string => {
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
+  const dateKey = formatDateLocal(startTime)
   const day = store.getGroupedDays(dayViewCount.value, dayOffset.value).find(d => d.date === dateKey)
 
   if (day) {
