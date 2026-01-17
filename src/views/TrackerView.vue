@@ -3,11 +3,15 @@
     <!-- Header -->
     <div class="bg-white shadow-sm border-b border-gray-200 px-4 py-4 flex-shrink-0">
       <h1 class="text-2xl font-bold text-gray-800 text-center">Baby Time Tracker</h1>
-      <div v-if="store.isConnectedToRoom" class="text-center mt-2">
+      <div v-if="store.isConnectedToRoom" class="text-center mt-2 space-y-1">
         <span class="inline-flex items-center text-xs bg-green-100 text-green-700 px-3 py-1 rounded-full">
           <span class="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
           Synced
         </span>
+        <div v-if="store.isReadOnly" class="inline-flex items-center text-xs bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full">
+          <span class="w-2 h-2 bg-yellow-500 rounded-full mr-2"></span>
+          Read Only
+        </div>
       </div>
     </div>
 
@@ -34,6 +38,7 @@
           @click="handleToggleSleepAwake"
           class="w-full py-6 px-6 rounded-2xl font-bold text-xl shadow-lg transition-all duration-200 active:scale-95"
           :class="sleepWakeButtonClass"
+          :disabled="store.isReadOnly"
         >
           {{ sleepWakeButtonText }}
         </button>
@@ -43,7 +48,7 @@
           @click="handleToggleEating"
           class="w-full py-6 px-6 rounded-2xl font-bold text-xl shadow-lg transition-all duration-200 active:scale-95"
           :class="eatingButtonClass"
-          :disabled="store.currentActivity === 'sleeping'"
+          :disabled="store.currentActivity === 'sleeping' || store.isReadOnly"
         >
           {{ eatingButtonText }}
         </button>

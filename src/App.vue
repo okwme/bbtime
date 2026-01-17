@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { RouterView, useRoute } from 'vue-router'
+import { useBabyTrackerStore } from '@/stores/babyTracker'
 
 const route = useRoute()
+const store = useBabyTrackerStore()
 </script>
 
 <template>
@@ -10,6 +12,35 @@ const route = useRoute()
     <main class="main-content">
       <RouterView />
     </main>
+
+    <!-- Writer Takeover Dialog -->
+    <div
+      v-if="store.showWriterTakeoverDialog"
+      class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+      @click.self="store.declineWriteRole"
+    >
+      <div class="bg-white rounded-2xl p-6 w-full max-w-md">
+        <h3 class="text-xl font-bold mb-4 text-gray-800">Take Over Write Access?</h3>
+        <p class="text-gray-600 mb-6">
+          Another device is currently the writer for this room. Would you like to take over write access?
+          If you decline, this device will run in read-only mode.
+        </p>
+        <div class="flex gap-3">
+          <button
+            @click="store.takeOverWriteRole"
+            class="flex-1 bg-blue-500 text-white font-bold py-3 px-4 rounded-xl hover:bg-blue-600 transition-colors"
+          >
+            Take Over
+          </button>
+          <button
+            @click="store.declineWriteRole"
+            class="flex-1 bg-gray-300 text-gray-800 font-bold py-3 px-4 rounded-xl hover:bg-gray-400 transition-colors"
+          >
+            Read Only
+          </button>
+        </div>
+      </div>
+    </div>
 
     <!-- Bottom Navigation -->
     <nav class="bottom-nav">

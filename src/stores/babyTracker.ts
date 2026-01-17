@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { ActivityEntry, ActivityType, DayData } from '@/types'
-import { createRoom, fetchRoomData, updateRoomData, mergeData, parseRoomCode, formatRoomCode, type SyncData, type RoomInfo } from '@/services/jsonbin'
+import { createRoom, fetchRoomData, updateRoomData, mergeData, parseRoomCode, formatRoomCode, getDeviceId, type SyncData, type RoomInfo } from '@/services/jsonbin'
 import {
   loadNotificationSettings,
   saveNotificationSettings,
@@ -12,6 +12,15 @@ import {
 const STORAGE_KEY = 'baby-tracker-data'
 const ROOM_KEY = 'baby-tracker-room'
 const SYNC_INTERVAL = 15000 // 15 seconds
+
+// Helper function to format date in local timezone as YYYY-MM-DD
+// This avoids timezone issues with toISOString() which converts to UTC
+const formatDateLocal = (date: Date): string => {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
 
 export const useBabyTrackerStore = defineStore('babyTracker', () => {
   // State
@@ -26,6 +35,12 @@ export const useBabyTrackerStore = defineStore('babyTracker', () => {
   const lastSyncTime = ref<Date | null>(null)
   const syncError = ref<string | null>(null)
   let syncInterval: number | null = null
+
+  // Writer device state
+  const isReadOnly = ref(false)
+  const currentWriterDeviceId = ref<string | null>(null)
+  const pendingWriteAction = ref<(() => void) | null>(null)
+  const showWriterTakeoverDialog = ref(false)
 
   // Notification state
   const notificationSettings = ref<NotificationSettings>(loadNotificationSettings())
@@ -86,6 +101,7 @@ export const useBabyTrackerStore = defineStore('babyTracker', () => {
 
   // Convert store state to SyncData format
   const toSyncData = (): SyncData => {
+    const deviceId = getDeviceId()
     return {
       entries: entries.value.map(e => ({
         ...e,
@@ -95,7 +111,8 @@ export const useBabyTrackerStore = defineStore('babyTracker', () => {
       currentActivity: currentActivity.value,
       isEating: isEating.value,
       currentEntryStartTime: currentEntryStartTime.value.toISOString(),
-      lastUpdated: new Date().toISOString()
+      lastUpdated: new Date().toISOString(),
+      writerDeviceId: deviceId
     }
   }
 
@@ -109,12 +126,42 @@ export const useBabyTrackerStore = defineStore('babyTracker', () => {
     currentActivity.value = data.currentActivity
     isEating.value = data.isEating
     currentEntryStartTime.value = new Date(data.currentEntryStartTime)
+    
+    // Check writer device ID
+    const deviceId = getDeviceId()
+    const remoteWriterId = data.writerDeviceId
+    
+    if (remoteWriterId && remoteWriterId !== deviceId) {
+      // Another device is the writer
+      const previousWriterId = currentWriterDeviceId.value
+      currentWriterDeviceId.value = remoteWriterId
+      
+      // Only show dialog if:
+      // 1. We're not already in read-only mode
+      // 2. The dialog isn't already showing
+      // 3. This is a new writer (different from what we saw before)
+      if (!isReadOnly.value && !showWriterTakeoverDialog.value && previousWriterId !== remoteWriterId) {
+        // Show dialog to ask if user wants to take over
+        showWriterTakeoverDialog.value = true
+      }
+    } else if (remoteWriterId === deviceId) {
+      // We are the writer
+      currentWriterDeviceId.value = deviceId
+      isReadOnly.value = false
+      showWriterTakeoverDialog.value = false // Close dialog if it was open
+    } else {
+      // No writer set yet, we can become the writer
+      currentWriterDeviceId.value = deviceId
+      isReadOnly.value = false
+      showWriterTakeoverDialog.value = false // Close dialog if it was open
+    }
+    
     saveToStorage()
   }
 
   // Sync to cloud
   const syncToCloud = async () => {
-    if (!roomInfo.value || isSyncing.value) return
+    if (!roomInfo.value || isSyncing.value || isReadOnly.value) return
 
     try {
       isSyncing.value = true
@@ -125,6 +172,10 @@ export const useBabyTrackerStore = defineStore('babyTracker', () => {
 
       if (success) {
         lastSyncTime.value = new Date()
+        // Update our writer status
+        const deviceId = getDeviceId()
+        currentWriterDeviceId.value = deviceId
+        isReadOnly.value = false
       }
     } catch (error) {
       console.error('Sync error:', error)
@@ -153,9 +204,11 @@ export const useBabyTrackerStore = defineStore('babyTracker', () => {
 
       fromSyncData(merged)
 
-      // Push merged data back
-      await updateRoomData(roomInfo.value.binId, merged)
-      lastSyncTime.value = new Date()
+      // Only push merged data back if we're the writer
+      if (!isReadOnly.value) {
+        await updateRoomData(roomInfo.value.binId, merged)
+        lastSyncTime.value = new Date()
+      }
     } catch (error) {
       console.error('Sync error:', error)
       syncError.value = 'Failed to sync'
@@ -197,6 +250,11 @@ export const useBabyTrackerStore = defineStore('babyTracker', () => {
       roomInfo.value = newRoomInfo
       localStorage.setItem(ROOM_KEY, JSON.stringify(newRoomInfo))
 
+      // When creating a room, we automatically become the writer
+      const deviceId = getDeviceId()
+      currentWriterDeviceId.value = deviceId
+      isReadOnly.value = false
+
       startAutoSync()
 
       return newRoomInfo
@@ -236,8 +294,11 @@ export const useBabyTrackerStore = defineStore('babyTracker', () => {
       roomInfo.value = newRoomInfo
       localStorage.setItem(ROOM_KEY, JSON.stringify(newRoomInfo))
 
-      // Push merged data
-      await updateRoomData(binId, merged)
+      // Only push merged data if we're the writer (or if there's no writer yet)
+      // The fromSyncData function will have set isReadOnly appropriately
+      if (!isReadOnly.value) {
+        await updateRoomData(binId, merged)
+      }
 
       startAutoSync()
 
@@ -281,13 +342,13 @@ export const useBabyTrackerStore = defineStore('babyTracker', () => {
     for (let i = startOffset; i <= endOffset; i++) {
       const date = new Date(today)
       date.setDate(today.getDate() + i)
-      const dateKey = date.toISOString().split('T')[0] as string
+      const dateKey = formatDateLocal(date)
       groups.set(dateKey, [])
     }
 
     // Add all completed entries (only within the requested date range)
     entries.value.forEach(entry => {
-      const dateKey = entry.startTime.toISOString().split('T')[0] as string
+      const dateKey = formatDateLocal(entry.startTime)
       // Only add entries that fall within the requested date range
       if (groups.has(dateKey)) {
         const group = groups.get(dateKey)
@@ -304,7 +365,7 @@ export const useBabyTrackerStore = defineStore('babyTracker', () => {
       startTime: currentEntryStartTime.value,
       endTime: null // Ongoing
     }
-    const currentDateKey = currentEntryStartTime.value.toISOString().split('T')[0] as string
+    const currentDateKey = formatDateLocal(currentEntryStartTime.value)
     if (groups.has(currentDateKey)) {
       const currentGroup = groups.get(currentDateKey)
       if (currentGroup) {
@@ -400,8 +461,57 @@ export const useBabyTrackerStore = defineStore('babyTracker', () => {
     }
   }
 
+  // Writer device management
+  const takeOverWriteRole = async () => {
+    const deviceId = getDeviceId()
+    currentWriterDeviceId.value = deviceId
+    isReadOnly.value = false
+    showWriterTakeoverDialog.value = false
+    
+    // Immediately sync to claim write role
+    if (roomInfo.value) {
+      const localData = toSyncData()
+      await updateRoomData(roomInfo.value.binId, localData)
+    }
+    
+    // Execute any pending write action
+    if (pendingWriteAction.value) {
+      const action = pendingWriteAction.value
+      pendingWriteAction.value = null
+      action()
+    }
+  }
+
+  const declineWriteRole = () => {
+    isReadOnly.value = true
+    showWriterTakeoverDialog.value = false
+    pendingWriteAction.value = null
+  }
+
+  const requestWriteAccess = (action: () => void): boolean => {
+    const deviceId = getDeviceId()
+    
+    // If we're already the writer, execute immediately
+    if (currentWriterDeviceId.value === deviceId || !currentWriterDeviceId.value) {
+      return true
+    }
+    
+    // If we're in read-only mode, ask to take over
+    if (isReadOnly.value || currentWriterDeviceId.value !== deviceId) {
+      pendingWriteAction.value = action
+      showWriterTakeoverDialog.value = true
+      return false
+    }
+    
+    return true
+  }
+
   // Actions
   const toggleSleepAwake = () => {
+    if (!requestWriteAccess(() => toggleSleepAwake())) {
+      return // Will be executed after user confirms take-over
+    }
+
     // End current entry
     const newEntry: ActivityEntry = {
       id: crypto.randomUUID(),
@@ -424,6 +534,10 @@ export const useBabyTrackerStore = defineStore('babyTracker', () => {
   }
 
   const toggleEating = () => {
+    if (!requestWriteAccess(() => toggleEating())) {
+      return // Will be executed after user confirms take-over
+    }
+
     // If currently eating, end eating period and return to awake
     if (isEating.value) {
       const newEntry: ActivityEntry = {
@@ -464,6 +578,10 @@ export const useBabyTrackerStore = defineStore('babyTracker', () => {
   }
 
   const updateEntry = (id: string, startTime: Date, endTime: Date, type?: ActivityType) => {
+    if (!requestWriteAccess(() => updateEntry(id, startTime, endTime, type))) {
+      return // Will be executed after user confirms take-over
+    }
+
     const entry = entries.value.find(e => e.id === id)
     if (entry) {
       entry.startTime = startTime
@@ -476,6 +594,10 @@ export const useBabyTrackerStore = defineStore('babyTracker', () => {
   }
 
   const updateCurrentActivity = (startTime: Date, endTime: Date | null, type?: ActivityType) => {
+    if (!requestWriteAccess(() => updateCurrentActivity(startTime, endTime, type))) {
+      return // Will be executed after user confirms take-over
+    }
+
     // Update the current activity start time
     currentEntryStartTime.value = startTime
 
@@ -510,6 +632,10 @@ export const useBabyTrackerStore = defineStore('babyTracker', () => {
   }
 
   const createEntry = (type: ActivityType, startTime: Date, endTime: Date) => {
+    if (!requestWriteAccess(() => createEntry(type, startTime, endTime))) {
+      return // Will be executed after user confirms take-over
+    }
+
     const newEntry: ActivityEntry = {
       id: crypto.randomUUID(),
       type,
@@ -521,20 +647,16 @@ export const useBabyTrackerStore = defineStore('babyTracker', () => {
   }
 
   const deleteEntry = (id: string) => {
+    if (!requestWriteAccess(() => deleteEntry(id))) {
+      return // Will be executed after user confirms take-over
+    }
+
     entries.value = entries.value.filter(e => e.id !== id)
     saveToStorage()
   }
 
   const initialize = async () => {
     loadFromStorage()
-
-    // If no data, start with awake state
-    if (entries.value.length === 0) {
-      currentActivity.value = 'awake'
-      isEating.value = false
-      currentEntryStartTime.value = new Date()
-      saveToStorage()
-    }
 
     // Auto-join default room if not already connected
     // Set this to your JSONBin bin ID to auto-connect on load
@@ -543,9 +665,27 @@ export const useBabyTrackerStore = defineStore('babyTracker', () => {
       try {
         await joinRoom(DEFAULT_BIN_ID)
         console.log('Connected to default room')
+        // After joining, wait a moment for initial sync to complete
+        await new Promise(resolve => setTimeout(resolve, 500))
       } catch (error) {
         console.warn('Could not auto-join default room:', error)
         // Continue without sync - this is non-blocking
+      }
+    }
+
+    // If no data, check if we need to create a default state
+    // Only create default state if we have no entries AND the currentEntryStartTime is very recent
+    // (indicating it might be uninitialized or just created, not a synced ongoing activity)
+    // This prevents overwriting synced ongoing activities
+    if (entries.value.length === 0) {
+      const timeSinceStart = new Date().getTime() - currentEntryStartTime.value.getTime()
+      // If current activity started less than 2 seconds ago, it's likely uninitialized
+      // Create a fresh default state
+      if (timeSinceStart < 2000) {
+        currentActivity.value = 'awake'
+        isEating.value = false
+        currentEntryStartTime.value = new Date()
+        saveToStorage()
       }
     }
 
@@ -567,6 +707,11 @@ export const useBabyTrackerStore = defineStore('babyTracker', () => {
     isSyncing,
     lastSyncTime,
     syncError,
+
+    // Writer device state
+    isReadOnly,
+    currentWriterDeviceId,
+    showWriterTakeoverDialog,
 
     // Notification state
     notificationSettings,
@@ -593,6 +738,10 @@ export const useBabyTrackerStore = defineStore('babyTracker', () => {
     leaveRoom,
     syncToCloud,
     syncFromCloud,
+
+    // Writer device actions
+    takeOverWriteRole,
+    declineWriteRole,
 
     // Notification actions
     updateNotificationSettings,
